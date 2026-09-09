@@ -4,3 +4,4 @@ __pycache__/
 .DS_Store
 fontes/wfs/
 fontes/calcadas_geom.parquet
+fontes/geo_*.parquet
