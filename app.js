@@ -36,6 +36,16 @@ const DECLIVIDADE_MAX = 8.33;
  * `un` é a unidade e `base` é o denominador — sem ele um "32" na tabela não
  * diz 32 de quê. */
 const METRICAS = {
+  potencial:  {rot: "potencial de adoção", campo: "cal_potencial", max: 450, un: "",
+               base: "crianças de 0 a 4 por km² que encontram calçada dentro da norma",
+               alto: "melhor",
+               ajuda: "Densidade de crianças de 0 a 4 anos multiplicada pela fração de "
+                    + "calçadas que passam na norma. Responde onde um aplicativo de "
+                    + "caminhada com carrinho teria gente para atender E calçada boa o "
+                    + "bastante para entregar uma rota. Densidade e não contagem: por "
+                    + "contagem o ranking vira o de população infantil e a calçada mal "
+                    + "reordena. Só existe por distrito — a criança mora no setor "
+                    + "censitário, não no trecho de calçada."},
   score:      {rot: "score de acessibilidade", campo: "cal_score", max: 35, un: "",
                base: "nota média das calçadas do distrito, de 0 a 100", alto: "melhor",
                ajuda: "Média das notas de passeio das calçadas do distrito. A nota soma "
@@ -143,6 +153,7 @@ let mapa, camadaDistritos, camadaCalcadas = null, camadaContorno = null,
 let distritos, municipio;
 let abertos = [];                   // distritos com a calçada desenhada agora
 let trocandoNivel = false;          // trava do drill-down automático por zoom
+let selecionado = null;             // distrito fixado pelo clique, se houver
 let zoomDeAbertura = null;          // abaixo dele, o mapa volta para a cidade
 const emCache = new Map();          // slug -> GeoJSON parseado, no máximo MAX_EM_CACHE
 
@@ -211,13 +222,25 @@ function pintarCartoes(onde, base, props) {
       <div class="sep"></div>
       <dt>face sem calçada nenhuma<span style="color:var(--ink-3)"> ¹</span></dt><dd>${pct(taxa(t.V05422, F))}</dd>
       <dt>face sem rampa<span style="color:var(--ink-3)"> ¹</span></dt><dd>${pct(taxa(t.V05428, C))}</dd>
-      ${t.criancas ? `<div class="sep"></div>
-      <div class="pessoas">${num(t.criancas)} crianças de 0 a 4 anos e ${num(t.idosos)} pessoas
-      com 60+ moram aqui.<br><span style="opacity:.75">¹ Censo 2022, por face de quadra</span></div>` : ""}
+      ${quemMora(props)}
+      <div class="pessoas" style="opacity:.75">¹ Censo 2022, por face de quadra</div>
     </dl>`;
 }
 
 /* No distrito o cartão passa a contar calçada, e conta só a que sobrou do filtro. */
+/* Quantas crianças de 0 a 4 anos moram nos distritos carregados, e quanto isso
+ * pesa na cidade. É o sinal de demanda do aplicativo de caminhada com carrinho:
+ * o dash existe para dizer onde ele seria mais bem recebido. */
+function quemMora(props) {
+  const criancas = props.reduce((a, p) => a + (p.criancas_0a4 || 0), 0);
+  const idosos = props.reduce((a, p) => a + (p.idosos_60 || 0), 0);
+  const doTotal = municipio.criancas_0a4 ? 100 * criancas / municipio.criancas_0a4 : null;
+  if (!criancas) return "";
+  return `<div class="sep"></div>
+    <div class="pessoas"><b>${num(criancas)} crianças de 0 a 4 anos</b> moram aqui —
+    ${pct(doTotal)} das da cidade. E ${num(idosos)} pessoas com 60 anos ou mais.</div>`;
+}
+
 function pintarCartoesCalcada(nome, mostradas, total, nomes = []) {
   const n = mostradas.length;
   if (!n) {
@@ -243,10 +266,10 @@ function pintarCartoesCalcada(nome, mostradas, total, nomes = []) {
       <div class="sep"></div>
       <dt>faixa livre mediana</dt><dd>${metros(livres[Math.floor(n / 2)])}</dd>
       <dt>no Plano Emergencial</dt><dd>${pct(parte(p => p.pec))}</dd>
+      ${quemMora(abertos)}
       <div class="sep"></div>
-      <div class="pessoas">A cor é ${escalaAtiva().rot}: mais forte, ${
-        escalaAtiva().alto === "melhor" ? "melhor" : "pior"}.
-      Cada polígono é um trecho de calçada cadastrado pela Prefeitura.</div>
+      <div class="pessoas">A cor é ${escalaAtiva().rot}. Cada polígono é um trecho de
+      calçada cadastrado pela Prefeitura.</div>
     </dl>`;
 }
 
@@ -336,7 +359,7 @@ function atualizarPorVista() {
   const visiveis = medirVista();
   atualizarControles();
   desenharTabela();
-  if (abertos.length) return;          // no nível da calçada o cartão é outro
+  if (abertos.length) { cartoesDaCalcada(); return; }
   const todos = visiveis.length === distritos.features.length;
   pintarCartoes(todos ? "Município de São Paulo" : `${visiveis.length} distritos na tela`,
                 todos ? "os 96 distritos" : "mova o mapa para mudar o recorte", visiveis);
@@ -349,6 +372,14 @@ function atualizarPorVista() {
  * feições pelo enquadramento em vez de descartar o distrito inteiro. */
 function distritosNaTela() {
   const b = mapa.getBounds(), c = mapa.getCenter();
+  // Escolher um distrito é um pedido explícito: enquanto ele estiver na tela, os
+  // dados são só dele, mesmo que o enquadramento alcance os vizinhos. Sai de
+  // vista, sai a fixação, e o mapa volta a seguir o enquadramento.
+  if (selecionado) {
+    const l = camadaDistritos.getLayers().find(x => x.feature.properties.id === selecionado);
+    if (l && cruzaVista(l, b)) return [l.feature.properties];
+    selecionado = null;
+  }
   const perto = [];
   camadaDistritos.eachLayer(l => {
     if (cruzaVista(l, b)) perto.push([l.getBounds().getCenter().distanceTo(c), l.feature.properties]);
@@ -435,7 +466,9 @@ function ligarDistrito(l, props) {
   l.on("mousemove", e => {
     const m = METRICAS[metrica];
     dica(e, `<b>${props.NM_DIST}</b><br>${m.rot}:
-      <span class="v">${pct(valorDe(props, m))}</span><br>${num(props.cal_n)} calçadas`);
+      <span class="v">${valorFmt(valorDe(props, m), m)}</span><br>
+      ${num(props.cal_n)} calçadas · ${num(props.criancas_0a4)} crianças de 0 a 4
+      em ${(props.km2 || 0).toFixed(1).replace(".", ",")} km²`);
   });
   l.on("mouseout", escondeDica);
   // Clique no mapa não reenquadra: o usuário já está olhando para onde clicou,
@@ -524,10 +557,21 @@ function montarCalcadas() {
       l.on("mouseout", escondeDica);
     }
   }).addTo(mapa);
-  const mostradas = gj.features.map(f => f.properties).filter(passaNosFiltros);
+  cartoesDaCalcada(gj);
+}
+
+/* O cartão do nível da calçada era escrito uma vez, na entrada, e nunca revisto.
+ * Bastava uma sequência de interações em que a última escrita pegasse `abertos`
+ * ainda vazio para ele ficar parado — foi assim que "quem mora aqui" sumia sem
+ * que a função que o monta tivesse defeito. Agora ele é reescrito junto com o
+ * resto do painel, a cada movimento do mapa. */
+function cartoesDaCalcada(gj) {
+  if (!abertos.length) return;
+  const dados = gj || {features: abertos.flatMap(p => (emCache.get(p.id) || {features: []}).features)};
+  const mostradas = dados.features.map(f => f.properties).filter(passaNosFiltros);
   const onde = abertos.length === 1 ? abertos[0].NM_DIST
                                     : `calçadas de ${abertos.length} distritos`;
-  pintarCartoesCalcada(onde, mostradas, gj.features.length,
+  pintarCartoesCalcada(onde, mostradas, dados.features.length,
                        abertos.map(p => p.NM_DIST));
 }
 
@@ -572,6 +616,7 @@ async function entrarNoNivel(alvos) {
 
 function sairDoNivel() {
   abertos = [];
+  selecionado = null;
   zoomDeAbertura = null;
   if (camadaCalcadas) { mapa.removeLayer(camadaCalcadas); camadaCalcadas = null; }
   if (camadaContorno) mapa.removeLayer(camadaContorno);
@@ -594,6 +639,7 @@ function voltarACidade() {
  * grande enquadra em zoom 12, abaixo de ZOOM_CALCADA, e sem forçar o clique não
  * mostraria calçada nenhuma. Os vizinhos que couberem na tela vêm junto. */
 async function irParaDistrito(props, enquadrar = true, ponto = null) {
+  selecionado = props.id;
   const l = camadaDistritos.getLayers().find(x => x.feature.properties.id === props.id);
   if (enquadrar && l) {
     mapa.fitBounds(l.getBounds(), {padding: [24, 24], animate: false});
@@ -662,13 +708,24 @@ async function montarPontos() {
     for (const k of ativos) {
       const marcas = [];
       for (const d of dados) {
-        for (const [x, y] of d[k] || []) {
-          if (vista.contains([y, x])) {
-            marcas.push(L.circleMarker([y, x], {
-              radius: PONTOS[k].r * (k === "incidentes" ? 1 : escala),
-              color: cor(PONTOS[k].cor), weight: 0,
-              fillOpacity: k === "incidentes" ? .95 : opacidade, renderer: tela}));
+        for (const p of d[k] || []) {
+          const [x, y] = p;
+          if (!vista.contains([y, x])) continue;
+          const m = L.circleMarker([y, x], {
+            radius: PONTOS[k].r * (k === "incidentes" ? 1 : escala),
+            color: cor(PONTOS[k].cor), weight: 0,
+            interactive: k === "incidentes",
+            fillOpacity: k === "incidentes" ? .95 : opacidade, renderer: tela});
+          // Só o incidente conta uma história; árvore e poste são só posição.
+          if (k === "incidentes") {
+            const [, , oque, quando, situacao] = p;
+            m.on("mousemove", e => dica(e, `<b>${oque || "reclamação"}</b><br>
+              ${quando ? `aberta em <span class="v">${quando}</span>` : "sem data"}${
+                situacao ? ` · ${situacao}` : ""}<br>
+              chamado do GeoSampa, a até 20 m desta calçada`));
+            m.on("mouseout", escondeDica);
           }
+          marcas.push(m);
         }
       }
       camadasPonto[k] = L.layerGroup(marcas).addTo(mapa);
@@ -709,7 +766,8 @@ function desenharTabela() {
       <tbody>${fs.map(p => {
         const v = valorDe(p, m);
         return `<tr data-d="${p.NM_DIST}" aria-current="false">
-          <th scope="row"><button title="${p.NM_DIST}">${p.NM_DIST}</button></th>
+          <th scope="row"><button title="${p.NM_DIST} · ${num(p.criancas_0a4)} crianças de 0 a 4 em ${
+            (p.km2 || 0).toFixed(1).replace(".", ",")} km²">${p.NM_DIST}</button></th>
           <td><span class="barra" style="width:${Math.min(100, 100 * v / m.max).toFixed(1)}%"></span>
               <span class="v">${valorFmt(v, m)}</span></td></tr>`;
       }).join("")}</tbody>

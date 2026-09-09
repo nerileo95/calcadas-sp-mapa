@@ -176,8 +176,21 @@ def pontos_por_distrito(malha):
                "incidentes": RECLAMACOES}
     guardados = {}
     for nome, arquivos in camadas.items():
-        p = pd.concat([gpd.read_parquet(FONTES / f).to_crs(CRS_MAPA) for f in arquivos],
-                      ignore_index=True)
+        partes = []
+        for f in arquivos:
+            g = gpd.read_parquet(FONTES / f).to_crs(CRS_MAPA)
+            if nome == "incidentes":
+                # Cada camada nomeia os campos à sua maneira; aqui viram três
+                # colunas só, que é o que a dica do mapa mostra.
+                g["oque"] = (g["dc_servico"] if "dc_servico" in g
+                             else g["dc_tipo_ocorrencia"]).str.strip()
+                data = g["dt_abertura"] if "dt_abertura" in g else g["dt_ocorrencia"]
+                g["quando"] = pd.to_datetime(data, utc=True, errors="coerce").dt.strftime("%m/%Y")
+                g["situacao"] = (g["tx_situacao_solicitacao"].str.capitalize()
+                                 if "tx_situacao_solicitacao" in g else "")
+                g = g[["geometry", "oque", "quando", "situacao"]]
+            partes.append(g)
+        p = pd.concat(partes, ignore_index=True)
         p = gpd.GeoDataFrame(p, geometry="geometry", crs=CRS_MAPA)
         m = malha[["NM_DIST", "geometry"]]
         j = gpd.sjoin(p, m, how="left", predicate="within")
@@ -191,8 +204,15 @@ def pontos_por_distrito(malha):
         j["distrito"] = j.NM_DIST.map(slug, na_action="ignore")
         j = j[j.distrito.notna()]
         for chave, grupo in j.groupby("distrito"):
-            guardados.setdefault(chave, {})[nome] = [
-                [round(x, 5), round(y, 5)] for x, y in zip(grupo.geometry.x, grupo.geometry.y)]
+            if nome == "incidentes":
+                guardados.setdefault(chave, {})[nome] = [
+                    [round(x, 5), round(y, 5), o, q or "", si or ""]
+                    for x, y, o, q, si in zip(grupo.geometry.x, grupo.geometry.y,
+                                              grupo.oque.fillna("reclamação"),
+                                              grupo.quando, grupo.situacao)]
+            else:
+                guardados.setdefault(chave, {})[nome] = [
+                    [round(x, 5), round(y, 5)] for x, y in zip(grupo.geometry.x, grupo.geometry.y)]
     for chave, camadas_do_distrito in guardados.items():
         (SAIDA / "pontos" / f"{chave}.json").write_text(
             json.dumps({k: camadas_do_distrito.get(k, []) for k in camadas}))
@@ -291,6 +311,19 @@ def calcadas(setores):
         "declive": round(float(c.declive.mean()), 2),
         "ruas": int(c.rua.replace("", np.nan).nunique()),
     }
+    # Onde o app seria melhor recebido: densidade de quem empurra carrinho vezes
+    # a fração de calçada que dá para usar. Densidade e não contagem — medido: com
+    # contagem absoluta o ranking vira quase o ranking de população infantil, e a
+    # calçada mal reordena. A área sai da soma dos setores, que ladrilham o
+    # distrito, em vez de um dissolve novo.
+    km2 = (setores.to_crs(CRS_METRICO).area.groupby(setores.NM_DIST).sum() / 1e6)
+    km2.index = km2.index.map(slug)
+    por_distrito["km2"] = km2.round(2)
+    criancas = setores.groupby("NM_DIST").criancas_0a4.sum()
+    criancas.index = criancas.index.map(slug)
+    por_distrito["criancas_km2"] = (criancas / km2).round(0)
+    por_distrito["cal_potencial"] = (por_distrito.criancas_km2
+                                     * (1 - por_distrito.cal_barreira / 100)).round(0)
     return por_distrito, cidade
 
 

@@ -29,16 +29,21 @@ WFS = "https://wfs.geosampa.prefeitura.sp.gov.br/geoserver/ows"
 PAGINA = 2000
 FONTES = Path("fontes")
 
-# nome curto -> (camada no WFS, campo de geometria, arquivo de saída)
+# nome curto -> (camada no WFS, campo de geometria, arquivo de saída, campos extras)
+# Árvore e poste vêm só com a geometria: são 1,3 milhão de pontos e o cadastro
+# não é usado. As reclamações trazem o que foi pedido, quando e em que pé está —
+# é o que o mapa mostra quando o mouse passa por cima.
+SAC = ["dc_servico", "dt_abertura", "tx_situacao_solicitacao"]
 CAMADAS = {
-    "calcadas": ("geoportal:calcada", "ge_poligono", "calcadas_geom.parquet"),
-    "arvores":  ("geoportal:arvore", "ge_ponto", "geo_arvores.parquet"),
-    "postes":   ("geoportal:iluminacao_publica", "ge_ponto", "geo_postes.parquet"),
-    # Reclamações com endereço. São o "incidente reportado" do score.
-    "buraco":       ("geoportal:sac_tapa_buraco", "ge_ponto", "geo_sac_buraco.parquet"),
-    "mato":         ("geoportal:sac_capinacao_guia_sarjeta", "ge_ponto", "geo_sac_mato.parquet"),
-    "arvore_risco": ("geoportal:risco_ocorrencia_queda_arvore", "ge_ponto", "geo_sac_arvore_risco.parquet"),
-    "arvore_urg":   ("geoportal:sac_quadra_arvore_urgencia", "ge_ponto", "geo_sac_arvore_urg.parquet"),
+    "calcadas": ("geoportal:calcada", "ge_poligono", "calcadas_geom.parquet", []),
+    "arvores":  ("geoportal:arvore", "ge_ponto", "geo_arvores.parquet", []),
+    "postes":   ("geoportal:iluminacao_publica", "ge_ponto", "geo_postes.parquet", []),
+    "buraco":       ("geoportal:sac_tapa_buraco", "ge_ponto", "geo_sac_buraco.parquet", SAC),
+    "mato":         ("geoportal:sac_capinacao_guia_sarjeta", "ge_ponto", "geo_sac_mato.parquet", SAC),
+    "arvore_risco": ("geoportal:risco_ocorrencia_queda_arvore", "ge_ponto",
+                     "geo_sac_arvore_risco.parquet", ["dc_tipo_ocorrencia", "dt_ocorrencia"]),
+    "arvore_urg":   ("geoportal:sac_quadra_arvore_urgencia", "ge_ponto",
+                     "geo_sac_arvore_urg.parquet", SAC),
 }
 
 
@@ -50,10 +55,10 @@ def quantas(camada):
     return int(r.text.split('numberMatched="')[1].split('"')[0])
 
 
-def pagina(camada, geom, inicio, tentativas=4):
+def pagina(camada, geom, campos, inicio, tentativas=4):
     params = {"service": "WFS", "version": "2.0.0", "request": "GetFeature",
               "typeNames": camada, "outputFormat": "application/json",
-              "srsName": "EPSG:4326", "propertyName": geom,
+              "srsName": "EPSG:4326", "propertyName": ",".join([geom] + campos),
               "count": PAGINA, "startIndex": inicio}
     for tentativa in range(tentativas):
         try:
@@ -62,7 +67,7 @@ def pagina(camada, geom, inicio, tentativas=4):
             g = gpd.read_file(io.BytesIO(r.content))
             if len(g) == 0:
                 raise RuntimeError("página vazia")
-            return g[["geometry"]]
+            return g[["geometry"] + campos]
         except Exception as exc:
             if tentativa == tentativas - 1:
                 raise
@@ -72,7 +77,7 @@ def pagina(camada, geom, inicio, tentativas=4):
 
 
 def baixar(nome):
-    camada, geom, saida = CAMADAS[nome]
+    camada, geom, saida, campos = CAMADAS[nome]
     destino, paginas = FONTES / saida, FONTES / "wfs" / nome
     if destino.exists():
         print(f"{nome}: já está em {destino}")
@@ -87,7 +92,7 @@ def baixar(nome):
         arq = paginas / f"pg_{inicio:07d}.parquet"
         if arq.exists():
             continue
-        pagina(camada, geom, inicio).to_parquet(arq)
+        pagina(camada, geom, campos, inicio).to_parquet(arq)
         if n % 50 == 0:
             print(f"  {n}/{len(inicios)} · {time.time() - t0:.0f}s", flush=True)
 

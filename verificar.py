@@ -136,6 +136,21 @@ def main():
         confere(f"score dentro de 0..100 em {linha.NM_DIST}",
                 float(arq.score.between(0, 100).all()), 1.0, 0)
 
+    # O potencial de adoção é derivado: se a conta publicada divergir da conta
+    # refeita aqui, o mapa está apontando o lançamento para o lugar errado.
+    refeito = d.criancas_km2 * (1 - d.cal_barreira / 100)
+    confere("maior divergência do potencial entre os 96",
+            float((d.cal_potencial - refeito).abs().max()), 0.0, 0.6)
+    area_sp = setores.to_crs(31983).area.sum() / 1e6
+    confere("soma das áreas dos distritos = município", d.km2.sum(), area_sp, 1.0)
+    topo = d.loc[d.cal_potencial.idxmax()]
+    fundo = d.loc[d.cal_potencial.idxmin()]
+    confere(f"maior potencial é a República ({topo.NM_DIST})",
+            float(topo.NM_DIST == "República"), 1.0, 0)
+    confere(f"menor potencial é Marsilac ({fundo.NM_DIST})",
+            float(fundo.NM_DIST == "Marsilac"), 1.0, 0)
+    confere("mediana do potencial", float(d.cal_potencial.median()), 288, 1.0)
+
     arquivos = sorted((SAIDA / "pontos").glob("*.json"))
     confere("um arquivo de pontos por distrito", len(arquivos), setores.NM_DIST.nunique(), 0)
     somas = {"arvores": 0, "postes": 0, "incidentes": 0}
