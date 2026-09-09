@@ -1,4 +1,214 @@
 <!doctype html>
+<html lang="pt-BR">
+<head>
 <meta charset="utf-8">
-<title>Calçadas de São Paulo</title>
-<p>Em construção — o mapa entra aqui.</p>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metade das calçadas de São Paulo não deixa passar</title>
+<meta name="description" content="Mapa interativo da qualidade das calçadas de São Paulo: 481 mil trechos do cadastro do GeoSampa, com largura, declividade e obstáculos, filtráveis pelos critérios da NBR 9050.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{
+  color-scheme: light;
+  --surface:#fcfcfb; --painel:#ffffff; --fundo:#f0efec;
+  --ink:#0b0b0b; --ink-2:#52514e; --ink-3:#84837d;
+  --linha:#e2e1dc; --linha-2:#eeede9;
+  /* rampa sequencial de uma cor só, escuro = pior (referência dataviz) */
+  --s100:#cde2fb; --s200:#9ec5f4; --s300:#6da7ec; --s400:#3987e5;
+  --s500:#256abf; --s600:#184f95; --s700:#0d366b;
+  --serie-1:#2a78d6;   /* calçada estreita */
+  --serie-2:#eb6834;   /* calçada íngreme */
+  --sem-dado:#d9d8d3;
+  --sombra:0 1px 2px rgba(11,11,11,.05), 0 12px 32px -18px rgba(11,11,11,.3);
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  color-scheme: dark;
+  --surface:#1a1a19; --painel:#212120; --fundo:#141413;
+  --ink:#ffffff; --ink-2:#c3c2b7; --ink-3:#8d8c84;
+  --linha:#33332f; --linha-2:#282825;
+  --s100:#0d366b; --s200:#184f95; --s300:#256abf; --s400:#3987e5;
+  --s500:#5598e7; --s600:#86b6ef; --s700:#cde2fb;
+  --serie-1:#3987e5; --serie-2:#d95926;
+  --sem-dado:#3a3a36;
+  --sombra:0 1px 2px rgba(0,0,0,.5), 0 12px 32px -18px rgba(0,0,0,.8);
+}}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --surface:#1a1a19; --painel:#212120; --fundo:#141413;
+  --ink:#ffffff; --ink-2:#c3c2b7; --ink-3:#8d8c84;
+  --linha:#33332f; --linha-2:#282825;
+  --s100:#0d366b; --s200:#184f95; --s300:#256abf; --s400:#3987e5;
+  --s500:#5598e7; --s600:#86b6ef; --s700:#cde2fb;
+  --serie-1:#3987e5; --serie-2:#d95926;
+  --sem-dado:#3a3a36;
+  --sombra:0 1px 2px rgba(0,0,0,.5), 0 12px 32px -18px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--surface); color:var(--ink);
+  font:400 15px/1.5 Archivo,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums}
+h1,h2,h3{margin:0; text-wrap:balance}
+
+.folha{max-width:1240px; margin:0 auto; padding:32px 22px 56px}
+
+/* ---------- cabeçalho: a pergunta e o vão ---------- */
+.selo{font:600 10.5px/1 "IBM Plex Mono",monospace; letter-spacing:.15em; text-transform:uppercase; color:var(--ink-3)}
+h1{font-size:clamp(26px,3.6vw,40px); font-weight:700; letter-spacing:-.025em; line-height:1.1; margin:12px 0 10px; max-width:19ch}
+.linha-fina{color:var(--ink-2); max-width:62ch; margin:0 0 22px; font-size:15.5px}
+
+.vao{display:flex; align-items:stretch; gap:0; border:1px solid var(--linha); border-radius:12px;
+  background:var(--painel); overflow:hidden; box-shadow:var(--sombra); margin-bottom:26px; flex-wrap:wrap}
+.vao .lado{flex:1 1 190px; padding:16px 18px; border-right:1px solid var(--linha-2)}
+.vao .lado:last-child{border-right:0}
+.vao dt{font:600 10px/1 "IBM Plex Mono",monospace; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); margin:0 0 8px}
+.vao dd{margin:0; font-size:30px; font-weight:700; letter-spacing:-.02em; line-height:1}
+.vao dd small{display:block; font-size:12px; font-weight:400; color:var(--ink-2); margin-top:6px; letter-spacing:0; line-height:1.35}
+.vao .destaque{background:var(--fundo)}
+.vao .destaque dd{font-size:38px}
+.marca-serie{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px; vertical-align:baseline}
+
+/* ---------- controles ---------- */
+.controles{display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; margin-bottom:12px}
+.grupo{display:flex; flex-direction:column; gap:6px}
+.grupo > span{font:600 9.5px/1 "IBM Plex Mono",monospace; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)}
+.pills{display:flex; gap:5px; flex-wrap:wrap}
+.pills button{border:1px solid var(--linha); background:var(--painel); color:var(--ink-2); cursor:pointer;
+  padding:7px 12px; border-radius:99px; font:500 12.5px/1 Archivo,sans-serif}
+.pills button[aria-pressed="true"]{background:var(--ink); color:var(--surface); border-color:var(--ink)}
+.pills button:focus-visible{outline:2px solid var(--serie-2); outline-offset:2px}
+/* árvore e poste só existem no recorte do piloto: fora dele o botão não mente */
+.pills button:disabled{opacity:.35; cursor:default}
+
+/* ---------- mapa e cartões ---------- */
+.palco{display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:18px; align-items:start}
+@media (max-width:980px){ .palco{grid-template-columns:1fr} }
+.envelope-mapa{position:relative; border:1px solid var(--linha); border-radius:12px; overflow:hidden; background:var(--painel)}
+#mapa{height:min(66vh,620px); background:var(--fundo)}
+@media (max-width:640px){ #mapa{height:56vh} }
+/* o basemap é contexto, não conteúdo: dessaturado para o dado mandar */
+.leaflet-tile-pane{filter:grayscale(1) contrast(.85) brightness(1.06) opacity(.55)}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .leaflet-tile-pane{
+  filter:grayscale(1) invert(1) contrast(.8) brightness(.85) opacity(.4)} }
+:root[data-theme="dark"] .leaflet-tile-pane{
+  filter:grayscale(1) invert(1) contrast(.8) brightness(.85) opacity(.4)}
+.leaflet-container{background:var(--fundo); font-family:Archivo,sans-serif}
+
+.cartoes{position:absolute; top:12px; left:12px; z-index:500; background:var(--painel);
+  border:1px solid var(--linha); border-radius:11px; padding:13px 15px; box-shadow:var(--sombra);
+  min-width:236px; max-width:min(300px,calc(100% - 24px))}
+.cartoes .onde{font-size:14.5px; font-weight:600; letter-spacing:-.01em; margin-bottom:2px}
+.cartoes .base{font:500 10.5px/1.3 "IBM Plex Mono",monospace; color:var(--ink-3); margin-bottom:11px}
+.cartoes dl{display:grid; grid-template-columns:1fr auto; gap:6px 10px; margin:0; align-items:baseline}
+.cartoes dt{font-size:12.5px; color:var(--ink-2)}
+.cartoes dd{margin:0; font:600 13.5px/1 "IBM Plex Mono",monospace; text-align:right}
+.cartoes .sep{grid-column:1/-1; height:1px; background:var(--linha-2); margin:5px 0}
+.cartoes .pessoas{grid-column:1/-1; font-size:11.5px; color:var(--ink-3); line-height:1.4}
+
+.legenda{position:absolute; bottom:12px; left:12px; z-index:500; background:var(--painel);
+  border:1px solid var(--linha); border-radius:10px; padding:10px 12px; box-shadow:var(--sombra)}
+.legenda .titulo{font:600 10px/1 "IBM Plex Mono",monospace; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); margin-bottom:7px}
+.escala{display:flex; height:11px; border-radius:3px; overflow:hidden; width:186px}
+.escala i{flex:1}
+.escala-rot{display:flex; justify-content:space-between; margin-top:5px; font:500 10px/1 "IBM Plex Mono",monospace; color:var(--ink-2)}
+.legenda .nd{display:flex; align-items:center; gap:6px; margin-top:8px; font-size:11px; color:var(--ink-3)}
+.legenda .nd i{width:11px; height:11px; border-radius:2px; background:var(--sem-dado); display:block}
+
+.dica{position:absolute; z-index:600; pointer-events:none; background:var(--ink); color:var(--surface);
+  padding:7px 10px; border-radius:7px; font-size:12px; line-height:1.4; max-width:230px; opacity:0; transition:opacity .1s}
+.dica b{font-weight:600}
+.dica .v{font-family:"IBM Plex Mono",monospace; font-weight:600}
+
+/* ---------- tabela de distritos ---------- */
+.painel-lado{border:1px solid var(--linha); border-radius:12px; background:var(--painel); padding:15px 16px}
+.painel-lado h2{font-size:16px; font-weight:600; letter-spacing:-.012em; margin-bottom:4px}
+.painel-lado .exp{font-size:12.5px; color:var(--ink-2); margin:0 0 12px}
+.tabela{max-height:430px; overflow-y:auto; margin:0 -6px; padding:0 6px}
+.tab{width:100%; border-collapse:collapse; font-size:11.5px; table-layout:fixed}
+.tab thead th{position:sticky; top:0; z-index:1; background:var(--painel); text-align:left;
+  font-weight:500; color:var(--ink-3); font-size:10px; letter-spacing:.07em; text-transform:uppercase;
+  padding:0 0 5px; border-bottom:1px solid var(--linha)}
+.tab thead th:last-child{text-align:right; width:44%}
+.tab tbody th{font-weight:400; padding:0; text-align:left}
+.tab tbody th button{border:0; background:none; padding:3px 0; width:100%; text-align:left; cursor:pointer;
+  font:inherit; color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block}
+.tab tbody tr:hover,.tab tbody tr[aria-current="true"]{background:var(--fundo)}
+.tab tbody tr[aria-current="true"] th button{color:var(--ink); font-weight:600}
+.tab tbody td{position:relative; padding:3px 0 3px 8px; text-align:right; vertical-align:middle}
+/* a barra é o dado, o número fica por cima dela — nada de duas colunas para a mesma coisa */
+.tab .barra{position:absolute; left:8px; top:4px; bottom:4px; background:var(--s400); opacity:.45;
+  border-radius:2px}
+.tab .v{position:relative; font:500 11.5px/1.5 'IBM Plex Mono',monospace;
+  font-variant-numeric:tabular-nums; color:var(--ink)}
+.rodape-tabela{font-size:11px; color:var(--ink-3); margin-top:9px; padding-top:9px; border-top:1px solid var(--linha-2)}
+
+footer{margin-top:36px; padding-top:20px; border-top:1px solid var(--linha); color:var(--ink-3); font-size:12.5px}
+footer p{max-width:80ch; margin:0 0 9px}
+footer a{color:var(--ink-2)}
+footer b{color:var(--ink-2)}
+.carregando{position:absolute; inset:0; display:grid; place-items:center; z-index:700;
+  background:color-mix(in srgb,var(--painel) 82%,transparent); font:500 13px/1 Archivo,sans-serif; color:var(--ink-2)}
+@media (prefers-reduced-motion:no-preference){ .pills button,.hl{transition:background-color .13s ease} }
+</style>
+</head>
+<body>
+<div class="folha">
+<header>
+  <p class="selo">GeoSampa · calçada a calçada · município de São Paulo</p>
+  <h1>Metade das calçadas de São Paulo<br>não deixa passar.</h1>
+  <p class="linha-fina">A Prefeitura mede cada trecho de calçada da cidade: largura, declividade,
+  árvore e poste plantados dentro dela. São 491.383 trechos, e mais da metade é estreita demais ou
+  íngreme demais para um carrinho de bebê, uma cadeira de rodas ou um andador. Escolha um distrito e
+  ligue os filtros: o que não passa no critério some do mapa.</p>
+  <dl class="vao" id="vao"></dl>
+</header>
+
+<div class="controles" id="controles"></div>
+
+<div class="palco">
+  <div class="envelope-mapa">
+    <div id="mapa"></div>
+    <div class="cartoes" id="cartoes"></div>
+    <div class="legenda" id="legenda"></div>
+    <div class="dica" id="dica"></div>
+    <div class="carregando" id="carregando">carregando os 96 distritos…</div>
+  </div>
+  <div class="painel-lado">
+    <h2>Os 96 distritos, do pior ao melhor</h2>
+    <p class="exp">A ordem acompanha o indicador que estiver pintando o mapa. Clique no nome para
+    ver as calçadas daquele distrito, uma a uma.</p>
+    <div class="tabela" id="tabela"></div>
+    <p class="rodape-tabela">Cada taxa é sobre as calçadas cadastradas no distrito — de 1.121 na
+    Bela Vista a 15.473 no Grajaú. Distrito grande e distrito pequeno pesam diferente na conta da cidade.</p>
+  </div>
+</div>
+
+<footer>
+  <p><b>Fonte.</b> Prefeitura de São Paulo — GeoSampa, camada <code>geoportal:calcada</code>:
+  491.383 trechos de calçada cadastrados, com área, largura mínima e média e declividade de cada um.
+  IBGE, Censo Demográfico 2022 — Agregados por Setores Censitários, <i>Características urbanísticas
+  do entorno dos domicílios</i>, por face de quadra (287.699 faces em 26.605 setores), usado nas
+  duas últimas métricas e no recorte de favela e comunidade urbana.</p>
+  <p><b>Os critérios.</b> <i>Estreita</i> é faixa livre abaixo de 1,20 m, o mínimo do Decreto
+  Municipal 59.671/2020 e da NBR 9050. <i>Faixa livre</i> é a largura mínima do trecho menos 0,70 m
+  de faixa de serviço onde há árvore ou poste plantado dentro da calçada — desconto binário, o mesmo
+  para uma árvore e para quarenta, porque o cadastro não diz onde o obstáculo está. É por isso que a
+  faixa livre chega a ficar negativa. <i>Íngreme</i> é declividade média acima de 8,33% (1:12).
+  <i>Barreira</i> é uma coisa ou a outra.</p>
+  <p><b>O que o dado não diz.</b> O cadastro descreve a <i>geometria</i> da calçada, não o estado
+  dela: não há buraco, piso solto nem rampa de esquina. Rampa para cadeirante só existe no Censo, por
+  face de quadra — por isso ela aparece como métrica do distrito e nunca como filtro de calçada.
+  Árvore e poste desenhados um a um existem só em Pinheiros e Vila Madalena; a contagem de
+  obstáculos, essa sim, é da cidade inteira.</p>
+  <p><a href="https://github.com/nerileo95/calcadas-sp-mapa">Código, dados e script de preparação no GitHub</a>
+  · Insper, Prática Avançada em Data Science and Visualization</p>
+</footer>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

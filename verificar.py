@@ -77,11 +77,36 @@ def main():
     for col, v in pior.items():
         confere(f"maior divergência entre 96 distritos — {col}", v, 0.0)
 
-    print("\n4. Os arquivos de setor por distrito")
-    arquivos = sorted((SAIDA / "setores").glob("*.geojson"))
+    print("\n4. As calçadas do município, contra o cadastro do GeoSampa")
+    cal = pd.read_parquet(FONTES / "calcadas_municipio.parquet", columns=[
+        "qt_largura_minima_trecho", "pc_declividade_media_trecho", "n_obst",
+        "tx_plano_emergencial_calcada"])
+    larg = cal.qt_largura_minima_trecho
+    livre = np.where(cal.n_obst > 0, larg - 0.70, larg)   # Decreto 59.671/2020
+    estreita, ingreme = livre < 1.20, cal.pc_declividade_media_trecho > 8.33
+    mc = m["calcadas"]
+    confere("calçadas cadastradas", mc["calcadas"], len(cal), 0)
+    confere("% estreita (faixa livre < 1,20 m)", mc["estreita"], 100 * estreita.mean())
+    confere("% íngreme (declividade > 8,33%)", mc["ingreme"], 100 * ingreme.mean())
+    confere("% com obstáculo", mc["obst"], 100 * (cal.n_obst > 0).mean())
+    confere("% no Plano Emergencial", mc["pec"], 100 * cal.tx_plano_emergencial_calcada.notna().mean())
+    confere("% barreira (estreita ou íngreme)", mc["barreira"], 100 * (estreita | ingreme).mean())
+    confere("% passa em tudo", mc["passa_tudo"],
+            100 * (~estreita & ~ingreme & (cal.n_obst == 0)).mean())
+
+    print("\n4b. Os arquivos de calçada por distrito")
+    arquivos = sorted((SAIDA / "calcadas").glob("*.geojson"))
     confere("um arquivo por distrito", len(arquivos), setores.NM_DIST.nunique(), 0)
-    total_setores = sum(len(gpd.read_file(a)) for a in arquivos)
-    confere("soma dos setores dos arquivos", total_setores, len(setores), 0)
+    confere("soma das calçadas dos 96 distritos", d.cal_n.sum(), mc["calcadas"], 0)
+    # O erro que mais custaria: juntar distritos pela média simples das taxas em
+    # vez de ponderar pelo número de calçadas. É o mesmo teste do #autoteste no JS.
+    ponderada = (d.cal_barreira * d.cal_n).sum() / d.cal_n.sum()
+    confere("barreira do município = ponderada pelos distritos", ponderada, mc["barreira"])
+    # Os arquivos de verdade: três amostras, do maior ao menor.
+    amostra = d.sort_values("cal_n", ascending=False).iloc[[0, len(d) // 2, -1]]
+    for _, linha in amostra.iterrows():
+        arq = gpd.read_file(SAIDA / "calcadas" / f"{linha.id}.geojson")
+        confere(f"calçadas em {linha.NM_DIST}", len(arq), linha.cal_n, 0)
 
     print("\n5. Recorte favela × resto")
     fav = json.loads((SAIDA / "favela.json").read_text())

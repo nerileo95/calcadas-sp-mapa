@@ -32,5 +32,15 @@
   "saltado": 0.7
  },
  "rampa_faces": 15.2,
- "vao": 79.8
+ "vao": 79.8,
+ "calcadas": {
+  "calcadas": 491383,
+  "estreita": 47.3,
+  "ingreme": 14.2,
+  "obst": 48.4,
+  "pec": 11.9,
+  "barreira": 53.5,
+  "passa_tudo": 27.9,
+  "livre_min_mediana": 1.25
+ }
 }
