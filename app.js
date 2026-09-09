@@ -40,28 +40,45 @@ const METRICAS = {
                base: "nota média das calçadas do distrito, de 0 a 100", alto: "melhor",
                ajuda: "Média das notas de passeio das calçadas do distrito. A nota soma "
                     + "sombra, iluminação, largura livre e terreno plano, e desconta "
-                    + "reclamação. Vai de 0 a 100, mas a cidade real fica entre 0 e 55."},
+                    + "reclamação. Vai de 0 a 100, mas a cidade real fica entre 0 e 55.",
+               calcada: {valor: p => p.score, max: 55, alto: "melhor",
+                         rot: "score de acessibilidade", pontas: ["0", "55 ou mais"]}},
   barreira:   {rot: "barreira", campo: "cal_barreira", max: 90, un: "%",
                base: "das calçadas do distrito", alto: "pior",
                ajuda: "Calçadas estreitas demais OU íngremes demais para passar: faixa "
-                    + "livre abaixo de 1,20 m ou declividade média acima de 8,33%."},
+                    + "livre abaixo de 1,20 m ou declividade média acima de 8,33%.",
+               calcada: {valor: p => p.livre_min < FAIXA_LIVRE_MIN
+                                        || p.declive > DECLIVIDADE_MAX ? 1 : 0,
+                         max: 1, binaria: true, alto: "pior", rot: "é barreira",
+                         pontas: ["passa", "é barreira"]}},
   estreita:   {rot: "estreita", campo: "cal_estreita", max: 90, un: "%",
                base: "das calçadas do distrito", alto: "pior",
                ajuda: "Calçadas com faixa livre abaixo de 1,20 m, o mínimo do Decreto "
                     + "59.671/2020 e da NBR 9050, já descontando 0,70 m de faixa de "
-                    + "serviço onde há árvore ou poste."},
+                    + "serviço onde há árvore ou poste.",
+               calcada: {valor: p => p.livre_min < FAIXA_LIVRE_MIN ? 1 : 0,
+                         max: 1, binaria: true, alto: "pior", rot: "faixa livre",
+                         pontas: ["1,20 m ou mais", "abaixo de 1,20 m"]}},
   declive:    {rot: "inclinação média", campo: "cal_declive", max: 7, un: "%",
                base: "inclinação média das calçadas do distrito", alto: "pior",
                ajuda: "Declividade média das calçadas do distrito. A NBR 9050 limita a "
-                    + "8,33% (1:12): acima disso a calçada deixa de ser passeio e vira rampa."},
+                    + "8,33% (1:12): acima disso a calçada deixa de ser passeio e vira rampa.",
+               calcada: {valor: p => p.declive, max: 15, alto: "pior",
+                         rot: "declividade", pontas: ["0%", "15% ou mais"]}},
   obstaculo:  {rot: "com obstáculo", campo: "cal_obst", max: 90, un: "%",
                base: "das calçadas do distrito", alto: "pior",
                ajuda: "Calçadas com ao menos uma árvore ou poste plantado dentro delas. "
-                    + "Cada obstáculo tira 0,70 m da largura útil."},
+                    + "Cada obstáculo tira 0,70 m da largura útil.",
+               calcada: {valor: p => p.obst > 0 ? 1 : 0,
+                         max: 1, binaria: true, alto: "pior", rot: "obstáculo",
+                         pontas: ["nenhum", "um ou mais"]}},
   pec:        {rot: "no Plano Emergencial", campo: "cal_pec", max: 60, un: "%",
                base: "das calçadas do distrito", alto: "pior",
                ajuda: "Calçadas dentro do Plano Emergencial de Calçadas (Decreto "
-                    + "58.845/2019), onde a reforma cabe ao município e não ao proprietário."},
+                    + "58.845/2019), onde a reforma cabe ao município e não ao proprietário.",
+               calcada: {valor: p => p.pec ? 1 : 0,
+                         max: 1, binaria: true, alto: "pior", rot: "Plano Emergencial",
+                         pontas: ["fora", "no plano"]}},
   sem_calcada: {rot: "sem calçada", num: "V05422", den: "V05400", max: 60, un: "%",
                 base: "das faces de quadra do distrito", alto: "pior",
                 ajuda: "Faces de quadra onde o recenseador não encontrou calçada nenhuma. "
@@ -80,26 +97,21 @@ const METRICAS = {
 const FILTROS = {
   larga: {rot: "faixa livre ≥ 1,20 m", ok: p => p.livre_min >= FAIXA_LIVRE_MIN,
           ajuda: "Mínimo do Decreto Municipal 59.671/2020 e da NBR 9050 para a faixa por "
-               + "onde se anda, já descontando árvore e poste.",
-          escala: {valor: p => p.livre_min, max: 3, alto: "melhor",
-                   rot: "faixa livre", pontas: ["0 m", "3 m ou mais"]}},
+               + "onde se anda, já descontando árvore e poste."},
   plana: {rot: "declividade ≤ 8,33%", ok: p => p.declive <= DECLIVIDADE_MAX,
           ajuda: "Limite da NBR 9050 (1:12). Acima disso a calçada exige esforço que uma "
-               + "cadeira de rodas manual não sustenta.",
-          escala: {valor: p => p.declive, max: 15, alto: "pior",
-                   rot: "declividade", pontas: ["0%", "15% ou mais"]}},
+               + "cadeira de rodas manual não sustenta."},
   livre: {rot: "sem obstáculo", ok: p => p.obst === 0,
           ajuda: "Nenhuma árvore ou poste plantado dentro da calçada. A norma pede faixa "
                + "livre desimpedida de ponta a ponta."},
   boa:   {rot: "score ≥ 30", ok: p => p.score >= 30,
           ajuda: "Só as calçadas com nota de passeio 30 ou mais. Como a mediana da cidade "
-               + "é 15, este filtro guarda mais ou menos as 10% melhores.",
-          escala: {valor: p => p.score, max: 55, alto: "melhor",
-                   rot: "score de acessibilidade", pontas: ["0", "55 ou mais"]}},
+               + "é 15, este filtro guarda mais ou menos as 10% melhores."},
   pec:   {rot: "no Plano Emergencial", ok: p => p.pec === true,
           ajuda: "Só as calçadas cuja reforma é obrigação do município pelo Decreto "
                + "58.845/2019. Não é critério de norma: é recorte administrativo."},
 };
+
 
 
 const RAMPA = ["--s100", "--s200", "--s300", "--s400", "--s500", "--s600", "--s700"];
@@ -447,23 +459,18 @@ function desenharDistritos() {
 const ESCALA_PADRAO = {valor: p => p.livre_min, max: 3, alto: "melhor",
                        rot: "faixa livre", pontas: ["0 m", "3 m ou mais"]};
 /* A nota vai de 0 a 100 por construção, mas a cidade real ocupa a ponta de
- * baixo: mediana 15, p99 igual a 53, e o melhor distrito tem média 32. Esticar
- * a rampa até 100 deixaria dois terços da escala sem uso e o mapa quase liso.
- * O teto do desenho é a faixa que existe, e a legenda diz isso. */
-const ESCALA_SCORE = {valor: p => p.score, max: 55, alto: "melhor",
-                      rot: "score de acessibilidade", pontas: ["0", "55 ou mais"]};
+ * baixo: mediana 15, p99 igual a 53, e o melhor distrito tem média 32. Por isso
+ * o teto do desenho é 55 e não 100 — ver METRICAS.score.calcada. */
 
-/* Com um único filtro ligado, a cor passa a ser o indicador dele — desde que o
- * indicador ainda varie entre as calçadas que sobraram. "Sem obstáculo" e "no
- * Plano Emergencial" deixam todas iguais no próprio critério, então lá a cor
- * continua sendo a faixa livre. */
+/* Quem pinta a calçada é sempre a métrica escolhida no mapa — a mesma que pinta
+ * o distrito, na sua versão por calçada. O filtro só subtrai; ter os dois
+ * disputando a cor era o que confundia.
+ *
+ * "Sem calçada" e "sem rampa" vêm do Censo, por face de quadra, e não têm
+ * versão por calçada em fonte nenhuma: ali a cor cai para a faixa livre, e a
+ * legenda diz que caiu. */
 function escalaAtiva() {
-  if (ligados.size === 1) {
-    const e = FILTROS[[...ligados][0]].escala;
-    if (e) return e;
-  }
-  if (metrica === "score") return ESCALA_SCORE;   // a métrica escolhida tem versão por calçada
-  return ESCALA_PADRAO;
+  return METRICAS[metrica].calcada || ESCALA_PADRAO;
 }
 
 function corDaCalcada(p, e) {
@@ -728,12 +735,12 @@ function marcarLinha(nomes) {
 /* ---------------- controles e legenda ---------------- */
 function desenharControles() {
   $("#controles").innerHTML = `
-    <div class="grupo"><span title="Escolhe o indicador que pinta os distritos, ordena a tabela e, quando existe versão por calçada, pinta a calçada">pintar o mapa por</span><div class="pills" id="pills-metrica">
+    <div class="grupo"><span title="Escolhe o indicador que pinta os distritos, ordena a tabela e pinta cada calçada quando você se aproxima">pintar o mapa por</span><div class="pills" id="pills-metrica">
       ${Object.entries(METRICAS).map(([k, m]) =>
         `<button data-m="${k}" aria-pressed="${k === metrica}" title="${m.ajuda}"
           >${m.rot}</button>`).join("")}
     </div></div>
-    <div class="grupo"><span title="Cada filtro é um critério da NBR 9050 e do Decreto 59.671/2020. Ligados por E: a calçada que não passa some do mapa">mostrar só as calçadas que</span><div class="pills" id="pills-filtro">
+    <div class="grupo"><span title="Cada filtro é um critério da NBR 9050 e do Decreto 59.671/2020. Ligados por E, e só subtraem: a calçada que não passa some do mapa. Quem escolhe a cor é o indicador ali de cima">mostrar só as calçadas que</span><div class="pills" id="pills-filtro">
       ${Object.entries(FILTROS).map(([k, f]) =>
         `<button data-f="${k}" aria-pressed="false" disabled data-ajuda="${f.ajuda}"
           >${f.rot}</button>`).join("")}
@@ -761,7 +768,6 @@ function desenharControles() {
     ligados.has(k) ? ligados.delete(k) : ligados.add(k);
     b.setAttribute("aria-pressed", ligados.has(k));
     montarCalcadas();
-    desenharLegenda();   // com um filtro só, a escala de cor passa a ser a dele
   };
   $("#pills-ponto").onclick = e => {
     const b = e.target.closest("button"); if (!b || b.disabled) return;
@@ -795,12 +801,16 @@ function desenharLegenda() {
   if (abertos.length) {
     const e = escalaAtiva();
     const [a, b] = e.pontas;
+    // Métrica de sim/não não merece sete degraus: mostra as duas pontas da rampa.
+    const passos = e.binaria ? [RAMPA[0], RAMPA[RAMPA.length - 1]] : RAMPA;
+    const emprestada = !METRICAS[metrica].calcada;
     $("#legenda").innerHTML = `
-      <div class="titulo">${e.rot} da calçada — mais forte, ${
-        e.alto === "melhor" ? "melhor" : "pior"}</div>
-      <div class="escala">${RAMPA.map(s => `<i style="background:${cor(s)}"></i>`).join("")}</div>
+      <div class="titulo">${e.rot} da calçada${e.binaria ? "" :
+        ` — mais forte, ${e.alto === "melhor" ? "melhor" : "pior"}`}</div>
+      <div class="escala">${passos.map(s => `<i style="background:${cor(s)}"></i>`).join("")}</div>
       <div class="escala-rot"><span>${a}</span><span>${b}</span></div>
-      <div class="nd"><i></i>sem medida</div>`;
+      <div class="nd"><i></i>${emprestada
+        ? `"${METRICAS[metrica].rot}" só existe por face de quadra` : "sem medida"}</div>`;
     return;
   }
   $("#legenda").innerHTML = `
