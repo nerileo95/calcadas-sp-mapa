@@ -104,6 +104,7 @@ h1{font-size:clamp(26px,3.6vw,40px); font-weight:700; letter-spacing:-.025em; li
 .leaflet-container{background:var(--fundo); font-family:Archivo,sans-serif}
 
 .cartoes{position:absolute; top:12px; left:12px; z-index:500; background:var(--painel);
+  max-height:calc(100% - 24px); overflow-y:auto;
   border:1px solid var(--linha); border-radius:11px; padding:13px 15px; box-shadow:var(--sombra);
   min-width:236px; max-width:min(300px,calc(100% - 24px))}
 .cartoes .onde{font-size:14.5px; font-weight:600; letter-spacing:-.01em; margin-bottom:2px}
@@ -114,7 +115,7 @@ h1{font-size:clamp(26px,3.6vw,40px); font-weight:700; letter-spacing:-.025em; li
 .cartoes .sep{grid-column:1/-1; height:1px; background:var(--linha-2); margin:5px 0}
 .cartoes .pessoas{grid-column:1/-1; font-size:11.5px; color:var(--ink-3); line-height:1.4}
 
-.legenda{position:absolute; bottom:12px; left:12px; z-index:500; background:var(--painel);
+.legenda{position:absolute; bottom:12px; right:12px; z-index:500; background:var(--painel);
   border:1px solid var(--linha); border-radius:10px; padding:10px 12px; box-shadow:var(--sombra)}
 .legenda .titulo{font:600 10px/1 "IBM Plex Mono",monospace; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); margin-bottom:7px}
 .escala{display:flex; height:11px; border-radius:3px; overflow:hidden; width:186px}
@@ -271,6 +272,6 @@ footer b{color:var(--ink-2)}
 </footer>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="app.js?v=11"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>

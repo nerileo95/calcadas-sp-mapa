@@ -79,7 +79,7 @@ if (!versao.temPotencial || !versao.temKm2NaDica || !versao.temCartaoVivo) {
   process.exit(2);
 }
 
-const METRICA_ROT = {barreira: "é barreira", score: "score", declive: "declividade",
+const METRICA_ROT = {barreira: "barreira", score: "score", declive: "declividade",
                      estreita: "faixa livre", obstaculo: "obstáculo"};
 const falhas = [];
 const confere = (rotulo, ok, detalhe) => {
@@ -110,11 +110,13 @@ r = await js(`
   await new Promise(r => setTimeout(r, 6000));
   return {nomes: abertos.map(p => p.NM_DIST),
           n: camadaCalcadas ? camadaCalcadas.getLayers().length : 0,
-          cartao: (document.querySelector("#cartoes .onde")||{}).textContent};`);
+          cartao: (document.querySelector("#cartoes .onde")||{}).textContent,
+          base: (document.querySelector("#cartoes .base")||{}).textContent,
+          nesta: ((document.querySelector("#cartoes .base")||{}).textContent||"").indexOf("nesta vista") >= 0};`);
 confere("carrega mais de um distrito quando cabem na tela", r.nomes.length > 1,
         `${r.nomes.length}: ${r.nomes.join(", ")} · ${r.n} calçadas`);
-confere("o cartão nomeia o conjunto carregado", /calçadas de \d+ distritos/.test(r.cartao || ""),
-        r.cartao);
+confere("o cartão conta o que está na tela, não o distrito inteiro", r.nesta,
+        `"${r.cartao}" · "${(r.base || "").split("\n")[0]}"`);
 
 console.log("\n1c. o mapa fica preso em São Paulo");
 r = await js(`

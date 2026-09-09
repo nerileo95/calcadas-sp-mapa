@@ -59,7 +59,7 @@ const METRICAS = {
                     + "livre abaixo de 1,20 m ou declividade média acima de 8,33%.",
                calcada: {valor: p => p.livre_min < FAIXA_LIVRE_MIN
                                         || p.declive > DECLIVIDADE_MAX ? 1 : 0,
-                         max: 1, binaria: true, alto: "pior", rot: "é barreira",
+                         max: 1, binaria: true, alto: "pior", rot: "barreira",
                          pontas: ["passa", "é barreira"]}},
   estreita:   {rot: "estreita", campo: "cal_estreita", max: 90, un: "%",
                base: "das calçadas do distrito", alto: "pior",
@@ -231,30 +231,39 @@ function pintarCartoes(onde, base, props) {
 /* Quantas crianças de 0 a 4 anos moram nos distritos carregados, e quanto isso
  * pesa na cidade. É o sinal de demanda do aplicativo de caminhada com carrinho:
  * o dash existe para dizer onde ele seria mais bem recebido. */
-function quemMora(props) {
+function quemMora(props, nomes = null) {
   const criancas = props.reduce((a, p) => a + (p.criancas_0a4 || 0), 0);
   const idosos = props.reduce((a, p) => a + (p.idosos_60 || 0), 0);
   const doTotal = municipio.criancas_0a4 ? 100 * criancas / municipio.criancas_0a4 : null;
   if (!criancas) return "";
+  // Quando o recorte é a tela, o "onde" desta linha continua sendo o distrito
+  // inteiro: o Censo não desce abaixo do setor censitário, e o setor não está
+  // guardado por calçada. Dizer "moram aqui" com três quarteirões na tela seria
+  // atribuir à vista um número que é de outra área.
+  const onde = !nomes ? "aqui"
+    : nomes.length === 1 ? `em ${nomes[0]}`
+    : `nos ${nomes.length} distritos desta vista`;
   return `<div class="sep"></div>
-    <div class="pessoas"><b>${num(criancas)} crianças de 0 a 4 anos</b> moram aqui —
+    <div class="pessoas"><b>${num(criancas)} crianças de 0 a 4 anos</b> moram ${onde} —
     ${pct(doTotal)} das da cidade. E ${num(idosos)} pessoas com 60 anos ou mais.</div>`;
 }
 
-function pintarCartoesCalcada(nome, mostradas, total, nomes = []) {
+function pintarCartoesCalcada(mostradas, vistas, nomes = []) {
   const n = mostradas.length;
+  const onde = nomes.length === 1 ? nomes[0] : "o que está na tela";
   if (!n) {
-    $("#cartoes").innerHTML = `<div class="onde">${nome}</div>
-      <div class="base">nenhuma das ${num(total)} calçadas passa nos filtros</div>`;
+    $("#cartoes").innerHTML = `<div class="onde">${onde}</div>
+      <div class="base">${vistas ? `nenhuma das ${num(vistas)} calçadas desta vista passa nos filtros`
+                                 : "nenhuma calçada nesta vista"}</div>`;
     return;
   }
   const parte = f => 100 * mostradas.filter(f).length / n;
   const livres = mostradas.map(p => p.livre_min).sort((a, b) => a - b);
-  const filtrado = n < total;
+  const filtrado = n < vistas;
   $("#cartoes").innerHTML = `
-    <div class="onde">${nome}</div>
-    <div class="base">${filtrado ? `${num(n)} de ${num(total)} calçadas passam nos filtros`
-                                 : `${num(n)} calçadas, uma a uma`}${
+    <div class="onde">${onde}</div>
+    <div class="base">${filtrado ? `${num(n)} de ${num(vistas)} calçadas nesta vista passam nos filtros`
+                                 : `${num(n)} calçadas nesta vista`}${
       nomes.length > 1 ? `<br>${nomes.join(" · ")}` : ""}</div>
     <dl>
       <dt><b>score de acessibilidade</b></dt><dd><b>${
@@ -266,10 +275,10 @@ function pintarCartoesCalcada(nome, mostradas, total, nomes = []) {
       <div class="sep"></div>
       <dt>faixa livre mediana</dt><dd>${metros(livres[Math.floor(n / 2)])}</dd>
       <dt>no Plano Emergencial</dt><dd>${pct(parte(p => p.pec))}</dd>
-      ${quemMora(abertos)}
+      ${quemMora(abertos, nomes)}
       <div class="sep"></div>
-      <div class="pessoas">A cor é ${escalaAtiva().rot}. Cada polígono é um trecho de
-      calçada cadastrado pela Prefeitura.</div>
+      <div class="pessoas">A cor é ${escalaAtiva().rot}. As contas acima são só das
+      calçadas que cabem nesta tela.</div>
     </dl>`;
 }
 
@@ -557,7 +566,7 @@ function montarCalcadas() {
       l.on("mouseout", escondeDica);
     }
   }).addTo(mapa);
-  cartoesDaCalcada(gj);
+  cartoesDaCalcada();
 }
 
 /* O cartão do nível da calçada era escrito uma vez, na entrada, e nunca revisto.
@@ -565,14 +574,44 @@ function montarCalcadas() {
  * ainda vazio para ele ficar parado — foi assim que "quem mora aqui" sumia sem
  * que a função que o monta tivesse defeito. Agora ele é reescrito junto com o
  * resto do painel, a cada movimento do mapa. */
-function cartoesDaCalcada(gj) {
+/* Caixa envolvente da feição, calculada uma vez e guardada nela. É o que torna
+ * barato recortar 19 mil calçadas pelo enquadramento a cada movimento. */
+function caixaDe(f) {
+  if (f._cx) return f._cx;
+  let o = 180, l = -180, s = 90, n = -90;
+  const anda = c => {
+    if (typeof c[0] === "number") {
+      if (c[0] < o) o = c[0];
+      if (c[0] > l) l = c[0];
+      if (c[1] < s) s = c[1];
+      if (c[1] > n) n = c[1];
+    } else for (const x of c) anda(x);
+  };
+  anda(f.geometry.coordinates);
+  return (f._cx = [o, s, l, n]);
+}
+
+/* O cartão conta o que está NA TELA, não o distrito inteiro. Num zoom de três
+ * quarteirões do Tatuapé ele dizia "9.831 calçadas" e dava a mediana dos dois
+ * distritos completos: números verdadeiros sobre outra coisa que não o que o
+ * usuário está olhando. */
+function cartoesDaCalcada() {
   if (!abertos.length) return;
-  const dados = gj || {features: abertos.flatMap(p => (emCache.get(p.id) || {features: []}).features)};
-  const mostradas = dados.features.map(f => f.properties).filter(passaNosFiltros);
-  const onde = abertos.length === 1 ? abertos[0].NM_DIST
-                                    : `calçadas de ${abertos.length} distritos`;
-  pintarCartoesCalcada(onde, mostradas, dados.features.length,
-                       abertos.map(p => p.NM_DIST));
+  const b = mapa.getBounds();
+  const O = b.getWest(), L = b.getEast(), S = b.getSouth(), N = b.getNorth();
+  const naTela = [];
+  let vistas = 0;
+  for (const d of abertos) {
+    const gj = emCache.get(d.id);
+    if (!gj) continue;
+    for (const f of gj.features) {
+      const c = caixaDe(f);
+      if (c[2] < O || c[0] > L || c[3] < S || c[1] > N) continue;
+      vistas++;
+      if (passaNosFiltros(f.properties)) naTela.push(f.properties);
+    }
+  }
+  pintarCartoesCalcada(naTela, vistas, abertos.map(p => p.NM_DIST));
 }
 
 async function entrarNoNivel(alvos) {
@@ -946,6 +985,7 @@ function autoteste() {
   mapa = L.map("mapa", {preferCanvas: true, zoomControl: false, minZoom: 9, maxZoom: 19,
                         maxBoundsViscosity: 1});
   L.control.zoom({position: "topright"}).addTo(mapa);
+  mapa.attributionControl.setPosition("bottomleft");   // a legenda fica na direita
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
   }).addTo(mapa);
