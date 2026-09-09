@@ -132,7 +132,17 @@ h1{font-size:clamp(26px,3.6vw,40px); font-weight:700; letter-spacing:-.025em; li
 .tab thead th{position:sticky; top:0; z-index:1; background:var(--painel); text-align:left;
   font-weight:500; color:var(--ink-3); font-size:10px; letter-spacing:.07em; text-transform:uppercase;
   padding:0 0 5px; border-bottom:1px solid var(--linha)}
-.tab thead th:last-child{text-align:right; width:44%}
+.tab thead th:last-child{text-align:right; width:46%; padding:0 0 5px}
+.tab thead th .quantos{font-weight:400; letter-spacing:.04em; opacity:.6; margin-left:5px}
+.tab thead th button{border:0; background:none; padding:0 0 5px; cursor:pointer; font:inherit;
+  color:var(--ink-3); text-transform:inherit; letter-spacing:inherit}
+.tab thead th button:hover{color:var(--ink)}
+.tab-vazia{font-size:12px; color:var(--ink-3); margin:14px 0 4px}
+#busca{width:100%; margin-bottom:10px; padding:7px 10px; border-radius:8px;
+  border:1px solid var(--linha); background:var(--fundo); color:var(--ink);
+  font:400 12.5px/1 Archivo,sans-serif}
+#busca::placeholder{color:var(--ink-3)}
+#busca:focus-visible{outline:2px solid var(--serie-2); outline-offset:1px}
 .tab tbody th{font-weight:400; padding:0; text-align:left}
 .tab tbody th button{border:0; background:none; padding:3px 0; width:100%; text-align:left; cursor:pointer;
   font:inherit; color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block}
@@ -178,9 +188,11 @@ footer b{color:var(--ink-2)}
     <div class="carregando" id="carregando">carregando os 96 distritos…</div>
   </div>
   <div class="painel-lado">
-    <h2>Os 96 distritos, do pior ao melhor</h2>
-    <p class="exp">A ordem acompanha o indicador que estiver pintando o mapa. Clique no nome para
-    ver as calçadas daquele distrito, uma a uma.</p>
+    <h2>Os distritos, lado a lado</h2>
+    <p class="exp">A tabela acompanha o mapa: mostra os distritos que estão na tela, ordenados pelo
+    indicador escolhido. Clique no nome para ver as calçadas daquele distrito, uma a uma.</p>
+    <input id="busca" type="search" placeholder="buscar distrito em toda a cidade"
+           aria-label="buscar distrito pelo nome, em toda a cidade">
     <div class="tabela" id="tabela"></div>
     <p class="rodape-tabela">Cada taxa é sobre as calçadas cadastradas no distrito — de 1.121 na
     Bela Vista a 15.473 no Grajaú. Distrito grande e distrito pequeno pesam diferente na conta da cidade.</p>
