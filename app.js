@@ -173,7 +173,7 @@ function pintarCartoesCalcada(nome, mostradas, total) {
       <dt>faixa livre mediana</dt><dd>${metros(livres[Math.floor(n / 2)])}</dd>
       <dt>no Plano Emergencial</dt><dd>${pct(parte(p => p.pec))}</dd>
       <div class="sep"></div>
-      <div class="pessoas">A cor é a faixa livre: mais escuro, menos espaço para andar.
+      <div class="pessoas">A cor é a faixa livre: mais forte, menos espaço para andar.
       Cada polígono é um trecho de calçada cadastrado pela Prefeitura.</div>
     </dl>`;
 }
@@ -504,7 +504,7 @@ function desenharLegenda() {
   const [esq, dir] = m.pior === "baixo" ? [`${m.max}%`, "0%"] : ["0%", `${m.max}%`];
   if (distritoAberto) {
     $("#legenda").innerHTML = `
-      <div class="titulo">faixa livre — mais escuro, menos espaço</div>
+      <div class="titulo">faixa livre — mais forte, menos espaço</div>
       <div class="escala">${[...RAMPA].reverse().map(s => `<i style="background:${cor(s)}"></i>`).join("")}</div>
       <div class="escala-rot"><span>0 m</span><span>3 m ou mais</span></div>
       <div class="nd"><i></i>sem medida</div>`;
@@ -513,7 +513,7 @@ function desenharLegenda() {
   $("#legenda").innerHTML = `
     <div class="titulo">${m.rot}${m.dica ? ` — ${m.dica}` : ""}</div>
     <div class="escala">${RAMPA.map(s => `<i style="background:${cor(s)}"></i>`).join("")}</div>
-    <div class="escala-rot"><span>${esq}</span><span>mais escuro = pior</span><span>${dir}</span></div>
+    <div class="escala-rot"><span>${esq}</span><span>mais forte = pior</span><span>${dir}</span></div>
     <div class="nd"><i></i>sem calçada cadastrada</div>`;
 }
 
