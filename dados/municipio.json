@@ -12,7 +12,8 @@
   "ciclovia": 4.0,
   "calcada": 81.5,
   "obstaculo": 72.7,
-  "rampa": 18.6
+  "rampa": 18.6,
+  "sem_rampa": 81.4
  },
  "rotulos": {
   "pavimentada": "via pavimentada",
@@ -43,6 +44,7 @@
   "passa_tudo": 27.9,
   "livre_min_mediana": 1.25,
   "score": 18.0,
+  "declive": 3.8,
   "ruas": 43887
  }
 }

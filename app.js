@@ -38,42 +38,69 @@ const DECLIVIDADE_MAX = 8.33;
 const METRICAS = {
   score:      {rot: "score de acessibilidade", campo: "cal_score", max: 35, un: "",
                base: "nota média das calçadas do distrito, de 0 a 100", alto: "melhor",
-               dica: "sombra e luz somam, reclamação desconta"},
+               ajuda: "Média das notas de passeio das calçadas do distrito. A nota soma "
+                    + "sombra, iluminação, largura livre e terreno plano, e desconta "
+                    + "reclamação. Vai de 0 a 100, mas a cidade real fica entre 0 e 55."},
   barreira:   {rot: "barreira", campo: "cal_barreira", max: 90, un: "%",
                base: "das calçadas do distrito", alto: "pior",
-               dica: "calçada estreita ou íngreme"},
+               ajuda: "Calçadas estreitas demais OU íngremes demais para passar: faixa "
+                    + "livre abaixo de 1,20 m ou declividade média acima de 8,33%."},
   estreita:   {rot: "estreita", campo: "cal_estreita", max: 90, un: "%",
                base: "das calçadas do distrito", alto: "pior",
-               dica: "faixa livre menor que 1,20 m"},
-  ingreme:    {rot: "íngreme", campo: "cal_ingreme", max: 60, un: "%",
-               base: "das calçadas do distrito", alto: "pior",
-               dica: "declividade acima de 8,33%"},
+               ajuda: "Calçadas com faixa livre abaixo de 1,20 m, o mínimo do Decreto "
+                    + "59.671/2020 e da NBR 9050, já descontando 0,70 m de faixa de "
+                    + "serviço onde há árvore ou poste."},
+  declive:    {rot: "inclinação média", campo: "cal_declive", max: 7, un: "%",
+               base: "inclinação média das calçadas do distrito", alto: "pior",
+               ajuda: "Declividade média das calçadas do distrito. A NBR 9050 limita a "
+                    + "8,33% (1:12): acima disso a calçada deixa de ser passeio e vira rampa."},
   obstaculo:  {rot: "com obstáculo", campo: "cal_obst", max: 90, un: "%",
                base: "das calçadas do distrito", alto: "pior",
-               dica: "árvore ou poste na calçada"},
+               ajuda: "Calçadas com ao menos uma árvore ou poste plantado dentro delas. "
+                    + "Cada obstáculo tira 0,70 m da largura útil."},
   pec:        {rot: "no Plano Emergencial", campo: "cal_pec", max: 60, un: "%",
                base: "das calçadas do distrito", alto: "pior",
-               dica: "Decreto 58.845/2019"},
+               ajuda: "Calçadas dentro do Plano Emergencial de Calçadas (Decreto "
+                    + "58.845/2019), onde a reforma cabe ao município e não ao proprietário."},
   sem_calcada: {rot: "sem calçada", num: "V05422", den: "V05400", max: 60, un: "%",
                 base: "das faces de quadra do distrito", alto: "pior",
-                dica: "Censo 2022, por face de quadra"},
-  rampa:      {rot: "com rampa", num: "V05427", den: "V05421", max: 60, un: "%",
-               base: "das faces que têm calçada", alto: "melhor",
-               dica: "Censo 2022, por face de quadra"},
+                ajuda: "Faces de quadra onde o recenseador não encontrou calçada nenhuma. "
+                     + "Censo 2022 — aqui a unidade é a face de quadra, não a calçada "
+                     + "cadastrada pela Prefeitura."},
+  sem_rampa:  {rot: "sem rampa", num: "V05428", den: "V05421", max: 100, un: "%",
+               base: "das faces que têm calçada", alto: "pior",
+               ajuda: "Faces que têm calçada mas não têm rebaixamento de guia para cadeira "
+                    + "de rodas. Censo 2022, por face de quadra: não existe dado de rampa "
+                    + "por calçada cadastrada, em fonte nenhuma."},
 };
+
 
 /* Os filtros. Cada um é um teste por calçada, e o que passa fica no mapa.
  * Ligados por E: quanto mais filtro, menos calçada sobra. */
 const FILTROS = {
   larga: {rot: "faixa livre ≥ 1,20 m", ok: p => p.livre_min >= FAIXA_LIVRE_MIN,
+          ajuda: "Mínimo do Decreto Municipal 59.671/2020 e da NBR 9050 para a faixa por "
+               + "onde se anda, já descontando árvore e poste.",
           escala: {valor: p => p.livre_min, max: 3, alto: "melhor",
                    rot: "faixa livre", pontas: ["0 m", "3 m ou mais"]}},
   plana: {rot: "declividade ≤ 8,33%", ok: p => p.declive <= DECLIVIDADE_MAX,
+          ajuda: "Limite da NBR 9050 (1:12). Acima disso a calçada exige esforço que uma "
+               + "cadeira de rodas manual não sustenta.",
           escala: {valor: p => p.declive, max: 15, alto: "pior",
                    rot: "declividade", pontas: ["0%", "15% ou mais"]}},
-  livre: {rot: "sem obstáculo", ok: p => p.obst === 0},
-  pec:   {rot: "no Plano Emergencial", ok: p => p.pec === true},
+  livre: {rot: "sem obstáculo", ok: p => p.obst === 0,
+          ajuda: "Nenhuma árvore ou poste plantado dentro da calçada. A norma pede faixa "
+               + "livre desimpedida de ponta a ponta."},
+  boa:   {rot: "score ≥ 30", ok: p => p.score >= 30,
+          ajuda: "Só as calçadas com nota de passeio 30 ou mais. Como a mediana da cidade "
+               + "é 15, este filtro guarda mais ou menos as 10% melhores.",
+          escala: {valor: p => p.score, max: 55, alto: "melhor",
+                   rot: "score de acessibilidade", pontas: ["0", "55 ou mais"]}},
+  pec:   {rot: "no Plano Emergencial", ok: p => p.pec === true,
+          ajuda: "Só as calçadas cuja reforma é obrigação do município pelo Decreto "
+               + "58.845/2019. Não é critério de norma: é recorte administrativo."},
 };
+
 
 const RAMPA = ["--s100", "--s200", "--s300", "--s400", "--s500", "--s600", "--s700"];
 /* Em cache: `cor` é chamada por feição, e um distrito tem milhares de calçadas.
@@ -128,7 +155,7 @@ function valorDe(props, m) {
 function somar(listaProps) {
   const t = {};
   for (const cod of ["V05400", "V05421", "V05406", "V05412", "V05422", "V05424",
-                     "V05427", "V05409", "V05415", "V05418", "V05430", "V05433"]) {
+                     "V05427", "V05428", "V05409", "V05415", "V05418", "V05430", "V05433"]) {
     t[cod] = listaProps.reduce((a, p) => a + (p[cod] || 0), 0);
   }
   t.criancas = listaProps.reduce((a, p) => a + (p.criancas_0a4 || 0), 0);
@@ -144,7 +171,8 @@ function somarCalcadas(listaProps) {
   const peso = campo => listaProps.reduce(
     (a, p) => a + (p[campo] || 0) * (p.cal_n || 0), 0) / n;
   return {n, barreira: peso("cal_barreira"), estreita: peso("cal_estreita"),
-          ingreme: peso("cal_ingreme"), obst: peso("cal_obst"), pec: peso("cal_pec")};
+          ingreme: peso("cal_ingreme"), obst: peso("cal_obst"), pec: peso("cal_pec"),
+          score: peso("cal_score"), declive: peso("cal_declive")};
 }
 
 function pintarCartoes(onde, base, props) {
@@ -161,14 +189,15 @@ function pintarCartoes(onde, base, props) {
     <div class="onde">${onde}</div>
     <div class="base">${num(c.n)} calçadas medidas · ${base}</div>
     <dl>
-      <dt><b>barreira</b></dt><dd><b>${pct(c.barreira)}</b></dd>
+      <dt><b>score de acessibilidade</b></dt><dd><b>${c.score.toFixed(1).replace(".", ",")}</b></dd>
+      <dt>barreira</dt><dd>${pct(c.barreira)}</dd>
       <dt>estreita</dt><dd>${pct(c.estreita)}</dd>
-      <dt>íngreme</dt><dd>${pct(c.ingreme)}</dd>
+      <dt>inclinação média</dt><dd>${pct(c.declive)}</dd>
       <dt>com obstáculo</dt><dd>${pct(c.obst)}</dd>
       <dt>no Plano Emergencial</dt><dd>${pct(c.pec)}</dd>
       <div class="sep"></div>
       <dt>face sem calçada nenhuma<span style="color:var(--ink-3)"> ¹</span></dt><dd>${pct(taxa(t.V05422, F))}</dd>
-      <dt>face com rampa<span style="color:var(--ink-3)"> ¹</span></dt><dd>${pct(taxa(t.V05427, C))}</dd>
+      <dt>face sem rampa<span style="color:var(--ink-3)"> ¹</span></dt><dd>${pct(taxa(t.V05428, C))}</dd>
       ${t.criancas ? `<div class="sep"></div>
       <div class="pessoas">${num(t.criancas)} crianças de 0 a 4 anos e ${num(t.idosos)} pessoas
       com 60+ moram aqui.<br><span style="opacity:.75">¹ Censo 2022, por face de quadra</span></div>` : ""}
@@ -192,9 +221,11 @@ function pintarCartoesCalcada(nome, mostradas, total, nomes = []) {
                                  : `${num(n)} calçadas, uma a uma`}${
       nomes.length > 1 ? `<br>${nomes.join(" · ")}` : ""}</div>
     <dl>
-      <dt><b>barreira</b></dt><dd><b>${pct(parte(p => p.livre_min < FAIXA_LIVRE_MIN || p.declive > DECLIVIDADE_MAX))}</b></dd>
+      <dt><b>score de acessibilidade</b></dt><dd><b>${
+        (mostradas.reduce((a, p) => a + p.score, 0) / n).toFixed(1).replace(".", ",")}</b></dd>
+      <dt>barreira</dt><dd>${pct(parte(p => p.livre_min < FAIXA_LIVRE_MIN || p.declive > DECLIVIDADE_MAX))}</dd>
       <dt>estreita</dt><dd>${pct(parte(p => p.livre_min < FAIXA_LIVRE_MIN))}</dd>
-      <dt>íngreme</dt><dd>${pct(parte(p => p.declive > DECLIVIDADE_MAX))}</dd>
+      <dt>inclinação média</dt><dd>${pct(mostradas.reduce((a, p) => a + p.declive, 0) / n)}</dd>
       <dt>com obstáculo</dt><dd>${pct(parte(p => p.obst > 0))}</dd>
       <div class="sep"></div>
       <dt>faixa livre mediana</dt><dd>${metros(livres[Math.floor(n / 2)])}</dd>
@@ -208,11 +239,66 @@ function pintarCartoesCalcada(nome, mostradas, total, nomes = []) {
 
 /* Quem está no enquadramento. Vale mesmo com um distrito aberto: a camada de
  * distritos sai do mapa mas continua viva, e é ela que a tabela lateral lê. */
+/* Um distrito está na tela quando o POLÍGONO cruza o enquadramento, não quando
+ * a caixa envolvente cruza. Com a caixa, um zoom numa rua de Pinheiros trazia o
+ * Butantã junto: a caixa do Butantã é enorme e cobre meio mapa. */
+function aneis(l) {
+  if (l._aneis) return l._aneis;
+  const saida = [];
+  const anda = x => {
+    if (!Array.isArray(x)) return;
+    if (x.length && x[0].lat !== undefined) saida.push(x);
+    else x.forEach(anda);
+  };
+  anda(l.getLatLngs());
+  return (l._aneis = saida);
+}
+
+const lado = (q, r, s) => (r[0] - q[0]) * (s[1] - q[1]) - (r[1] - q[1]) * (s[0] - q[0]);
+const segsCruzam = (p1, p2, p3, p4) => {
+  const d1 = lado(p3, p4, p1), d2 = lado(p3, p4, p2);
+  const d3 = lado(p1, p2, p3), d4 = lado(p1, p2, p4);
+  return (d1 > 0) !== (d2 > 0) && (d3 > 0) !== (d4 > 0);
+};
+
+function pontoNoPoligano(lat, lng, rings) {
+  let dentro = false;
+  for (const anel of rings) {
+    for (let i = 0, j = anel.length - 1; i < anel.length; j = i++) {
+      const yi = anel[i].lat, xi = anel[i].lng, yj = anel[j].lat, xj = anel[j].lng;
+      if ((yi > lat) !== (yj > lat) &&
+          lng < (xj - xi) * (lat - yi) / (yj - yi) + xi) dentro = !dentro;
+    }
+  }
+  return dentro;
+}
+
+function cruzaVista(l, b) {
+  if (!b.intersects(l.getBounds())) return false;      // rejeição barata primeiro
+  const O = b.getWest(), L = b.getEast(), S = b.getSouth(), N = b.getNorth();
+  const cantos = [[O, S], [L, S], [L, N], [O, N]];
+  const rings = aneis(l);
+  for (const anel of rings) {
+    for (let i = 0; i < anel.length; i++) {
+      const p = anel[i];
+      if (p.lng >= O && p.lng <= L && p.lat >= S && p.lat <= N) return true;
+      const q = anel[(i + 1) % anel.length];
+      const a = [p.lng, p.lat], c = [q.lng, q.lat];
+      for (let k = 0; k < 4; k++) {
+        if (segsCruzam(a, c, cantos[k], cantos[(k + 1) % 4])) return true;
+      }
+    }
+  }
+  // Nenhuma borda cruza: ou a tela está inteira dentro do distrito, ou fora.
+  const m = b.getCenter();
+  return pontoNoPoligano(m.lat, m.lng, rings);
+}
+
 function medirVista() {
   const b = mapa.getBounds();
   const dentro = [];
   camadaDistritos.eachLayer(l => {
-    if (b.intersects(l.getBounds())) dentro.push(l.feature.properties);
+    if (cruzaVista(l, b)) dentro.push(l.feature.properties);
   });
   naVista = new Set(dentro.map(p => p.NM_DIST));
   return dentro;
@@ -222,12 +308,14 @@ function medirVista() {
  * tela: botão que aceita o clique e não faz nada parece defeito. */
 function atualizarControles() {
   const semCalcada = !abertos.length;
-  for (const b of document.querySelectorAll("#pills-ponto button, #pills-filtro button")) {
+  const aviso = "Aproxime o mapa até a calçada aparecer. ";
+  for (const b of document.querySelectorAll(
+      "#pills-ponto button, #pills-filtro button, #btn-favela")) {
     b.disabled = semCalcada;
-    b.title = semCalcada ? "aproxime o mapa até a calçada aparecer" : "";
+    // O texto de ajuda mora no elemento: escrevê-lo aqui a cada mudança de nível
+    // apagava a explicação do indicador, que é o que o usuário quer ler.
+    b.title = (semCalcada ? aviso : "") + (b.dataset.ajuda || "");
   }
-  const fav = $("#btn-favela");
-  if (fav) fav.disabled = semCalcada;
 }
 
 /* Recalcula para o que está na tela. É a interação central do painel. */
@@ -250,8 +338,7 @@ function distritosNaTela() {
   const b = mapa.getBounds(), c = mapa.getCenter();
   const perto = [];
   camadaDistritos.eachLayer(l => {
-    const cb = l.getBounds();
-    if (b.intersects(cb)) perto.push([cb.getCenter().distanceTo(c), l.feature.properties]);
+    if (cruzaVista(l, b)) perto.push([l.getBounds().getCenter().distanceTo(c), l.feature.properties]);
   });
   perto.sort((x, y) => x[0] - y[0]);
   const escolhidos = [];
@@ -407,7 +494,7 @@ function montarCalcadas() {
   }).addTo(mapa);
   const mostradas = gj.features.map(f => f.properties).filter(passaNosFiltros);
   const onde = abertos.length === 1 ? abertos[0].NM_DIST
-                                    : `${abertos.length} distritos na tela`;
+                                    : `calçadas de ${abertos.length} distritos`;
   pintarCartoesCalcada(onde, mostradas, gj.features.length,
                        abertos.map(p => p.NM_DIST));
 }
@@ -490,9 +577,15 @@ async function irParaDistrito(props, enquadrar = true, ponto = null) {
  * cores são deliberadamente fora da rampa azul da calçada: sobrepostas a ela,
  * uma cor da mesma família viraria mais um tom da escala. */
 const PONTOS = {
-  arvores:    {rot: "árvores", cor: "--pt-arvore", r: 1.7},
-  postes:     {rot: "postes", cor: "--pt-poste", r: 1.4},
-  incidentes: {rot: "incidentes reportados", cor: "--pt-incidente", r: 3.2},
+  arvores:    {rot: "árvores", cor: "--pt-arvore", r: 1.7,
+               ajuda: "As 652.976 árvores do cadastro municipal. Dentro da calçada elas são "
+                    + "obstáculo; ao longo dela, sombra — e o score conta as duas coisas."},
+  postes:     {rot: "postes", cor: "--pt-poste", r: 1.4,
+               ajuda: "Os 662.945 pontos de iluminação pública. Ocupam a faixa de serviço e "
+                    + "somam luz ao score."},
+  incidentes: {rot: "incidentes reportados", cor: "--pt-incidente", r: 3.2,
+               ajuda: "7.006 chamados com endereço: capinação de guia e sarjeta, risco de "
+                    + "queda de árvore e árvore em urgência. Descontam do score a até 20 m."},
 };
 const pontosLigados = new Set();
 const pontosEmCache = new Map();
@@ -603,21 +696,24 @@ function marcarLinha(nomes) {
 /* ---------------- controles e legenda ---------------- */
 function desenharControles() {
   $("#controles").innerHTML = `
-    <div class="grupo"><span>pintar o mapa por</span><div class="pills" id="pills-metrica">
+    <div class="grupo"><span title="Escolhe o indicador que pinta os distritos, ordena a tabela e, quando existe versão por calçada, pinta a calçada">pintar o mapa por</span><div class="pills" id="pills-metrica">
       ${Object.entries(METRICAS).map(([k, m]) =>
-        `<button data-m="${k}" aria-pressed="${k === metrica}">${m.rot}</button>`).join("")}
+        `<button data-m="${k}" aria-pressed="${k === metrica}" title="${m.ajuda}"
+          >${m.rot}</button>`).join("")}
     </div></div>
-    <div class="grupo"><span>mostrar só as calçadas que</span><div class="pills" id="pills-filtro">
+    <div class="grupo"><span title="Cada filtro é um critério da NBR 9050 e do Decreto 59.671/2020. Ligados por E: a calçada que não passa some do mapa">mostrar só as calçadas que</span><div class="pills" id="pills-filtro">
       ${Object.entries(FILTROS).map(([k, f]) =>
-        `<button data-f="${k}" aria-pressed="false" disabled>${f.rot}</button>`).join("")}
+        `<button data-f="${k}" aria-pressed="false" disabled data-ajuda="${f.ajuda}"
+          >${f.rot}</button>`).join("")}
     </div></div>
-    <div class="grupo"><span>filtro avançado</span><div class="pills" id="pills-ponto">
+    <div class="grupo"><span title="Camadas de ponto da cidade inteira, desenhadas por cima da calçada">filtro avançado</span><div class="pills" id="pills-ponto">
       ${Object.entries(PONTOS).map(([k, o]) =>
         `<button id="pt-${k}" data-p="${k}" aria-pressed="false" disabled
-           title="aproxime o mapa até a calçada aparecer">${o.rot}</button>`).join("")}
+           data-ajuda="${o.ajuda}">${o.rot}</button>`).join("")}
     </div></div>
     <div class="grupo"><span>recorte</span><div class="pills">
-      <button id="btn-favela" aria-pressed="false" disabled>só favela e comunidade urbana</button>
+      <button id="btn-favela" aria-pressed="false" disabled
+        data-ajuda="Mostra só as calçadas em setor censitário classificado como favela ou comunidade urbana pelo IBGE.">só favela e comunidade urbana</button>
       <button id="voltar" hidden>voltar à cidade</button>
     </div></div>`;
 

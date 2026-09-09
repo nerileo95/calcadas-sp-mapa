@@ -100,6 +100,9 @@ def metricas(g):
     # obstáculo e rampa: o universo é quem tem calçada
     m["obstaculo"] = seguro(g["V05424"], com_calcada)
     m["rampa"] = seguro(g["V05427"], com_calcada)
+    # A pergunta útil é quantas faces com calçada NÃO têm rampa: é o que falta,
+    # não o que existe. V05429 (não determinado) fica de fora dos dois lados.
+    m["sem_rampa"] = seguro(g["V05428"], com_calcada)
     m["rampa_faces"] = seguro(g["V05427"], faces)
     m["sem_calcada"] = seguro(g["V05422"], faces)
     m["sem_arvore"] = seguro(g["V05430"], faces)
@@ -113,7 +116,7 @@ def contagens(g):
     cartões quando o usuário move o mapa. Recalcular a partir de percentuais
     daria média de média."""
     cols = ["V05400", "V05421", "V05406", "V05412", "V05422", "V05424", "V05427",
-            "V05409", "V05415", "V05418", "V05430", "V05433"]
+            "V05428", "V05409", "V05415", "V05418", "V05430", "V05433"]
     return g[cols].astype(int)
 
 
@@ -273,6 +276,7 @@ def calcadas(setores):
         cal_pec=("pec", taxa),
         cal_barreira=("barreira", taxa),
         cal_score=("score", lambda x: round(x.mean(), 1)),
+        cal_declive=("declive", lambda x: round(x.mean(), 2)),
     )
     cidade = {
         "calcadas": int(len(c)),
@@ -284,6 +288,7 @@ def calcadas(setores):
         "passa_tudo": taxa(~c.barreira & (c.obst == 0)),
         "livre_min_mediana": round(float(c.livre_min.median()), 2),
         "score": round(float(c.score.mean()), 1),
+        "declive": round(float(c.declive.mean()), 2),
         "ruas": int(c.rua.replace("", np.nan).nunique()),
     }
     return por_distrito, cidade
@@ -310,6 +315,7 @@ def main():
     }
     municipio["taxas"]["obstaculo"] = round(100 * tot["V05424"] / tot["V05421"], 1)
     municipio["taxas"]["rampa"] = round(100 * tot["V05427"] / tot["V05421"], 1)
+    municipio["taxas"]["sem_rampa"] = round(100 * tot["V05428"] / tot["V05421"], 1)
     municipio["rampa_faces"] = round(100 * tot["V05427"] / F, 1)
     # subtrair das contagens, não das taxas já arredondadas: 94,9 - 15,2 daria
     # 79,7 quando o valor é 79,8. É o número principal do painel.
