@@ -25,23 +25,40 @@ const DECLIVIDADE_MAX = 8.33;
 
 /* Métricas que pintam o distrito na visão de cidade e ordenam a tabela.
  * `campo` já é uma taxa pronta (GeoSampa, por calçada); `num`/`den` são
- * contagens do Censo que o cartão soma. `pior` diz para que lado escurece. */
+ * contagens do Censo que o cartão soma.
+ *
+ * A escala é sempre monotônica: valor menor à esquerda, maior à direita, cor
+ * mais fraca à esquerda, mais forte à direita — em todos os indicadores. Custa
+ * o "mais escuro = pior" universal, e `alto` passa a dizer, por métrica, se
+ * muito é bom ou ruim. Em troca a escala nunca troca de lado ao mudar de
+ * indicador, que era o que desorientava.
+ *
+ * `un` é a unidade e `base` é o denominador — sem ele um "32" na tabela não
+ * diz 32 de quê. */
 const METRICAS = {
-  score:      {rot: "score de acessibilidade", campo: "cal_score", pior: "baixo", max: 35,
+  score:      {rot: "score de acessibilidade", campo: "cal_score", max: 35, un: "",
+               base: "nota média das calçadas do distrito, de 0 a 100", alto: "melhor",
                dica: "sombra e luz somam, reclamação desconta"},
-  barreira:   {rot: "barreira", campo: "cal_barreira", pior: "alto", max: 90,
+  barreira:   {rot: "barreira", campo: "cal_barreira", max: 90, un: "%",
+               base: "das calçadas do distrito", alto: "pior",
                dica: "calçada estreita ou íngreme"},
-  estreita:   {rot: "estreita", campo: "cal_estreita", pior: "alto", max: 90,
+  estreita:   {rot: "estreita", campo: "cal_estreita", max: 90, un: "%",
+               base: "das calçadas do distrito", alto: "pior",
                dica: "faixa livre menor que 1,20 m"},
-  ingreme:    {rot: "íngreme", campo: "cal_ingreme", pior: "alto", max: 60,
+  ingreme:    {rot: "íngreme", campo: "cal_ingreme", max: 60, un: "%",
+               base: "das calçadas do distrito", alto: "pior",
                dica: "declividade acima de 8,33%"},
-  obstaculo:  {rot: "com obstáculo", campo: "cal_obst", pior: "alto", max: 90,
+  obstaculo:  {rot: "com obstáculo", campo: "cal_obst", max: 90, un: "%",
+               base: "das calçadas do distrito", alto: "pior",
                dica: "árvore ou poste na calçada"},
-  pec:        {rot: "no Plano Emergencial", campo: "cal_pec", pior: "alto", max: 60,
+  pec:        {rot: "no Plano Emergencial", campo: "cal_pec", max: 60, un: "%",
+               base: "das calçadas do distrito", alto: "pior",
                dica: "Decreto 58.845/2019"},
-  sem_calcada: {rot: "sem calçada", num: "V05422", den: "V05400", pior: "alto", max: 60,
+  sem_calcada: {rot: "sem calçada", num: "V05422", den: "V05400", max: 60, un: "%",
+                base: "das faces de quadra do distrito", alto: "pior",
                 dica: "Censo 2022, por face de quadra"},
-  rampa:      {rot: "com rampa", num: "V05427", den: "V05421", pior: "baixo", max: 60,
+  rampa:      {rot: "com rampa", num: "V05427", den: "V05421", max: 60, un: "%",
+               base: "das faces que têm calçada", alto: "melhor",
                dica: "Censo 2022, por face de quadra"},
 };
 
@@ -49,10 +66,10 @@ const METRICAS = {
  * Ligados por E: quanto mais filtro, menos calçada sobra. */
 const FILTROS = {
   larga: {rot: "faixa livre ≥ 1,20 m", ok: p => p.livre_min >= FAIXA_LIVRE_MIN,
-          escala: {valor: p => p.livre_min, max: 3, pior: "baixo",
+          escala: {valor: p => p.livre_min, max: 3, alto: "melhor",
                    rot: "faixa livre", pontas: ["0 m", "3 m ou mais"]}},
   plana: {rot: "declividade ≤ 8,33%", ok: p => p.declive <= DECLIVIDADE_MAX,
-          escala: {valor: p => p.declive, max: 15, pior: "alto",
+          escala: {valor: p => p.declive, max: 15, alto: "pior",
                    rot: "declividade", pontas: ["0%", "15% ou mais"]}},
   livre: {rot: "sem obstáculo", ok: p => p.obst === 0},
   pec:   {rot: "no Plano Emergencial", ok: p => p.pec === true},
@@ -82,7 +99,7 @@ const ligados = new Set();          // filtros ativos
 let ordemAsc = false;               // a tabela começa pelo pior
 let busca = "";                     // texto da barra de busca
 let naVista = null;                 // distritos dentro do enquadramento atual
-let mapa, camadaDistritos, camadaCalcadas = null;
+let mapa, camadaDistritos, camadaCalcadas = null, camadaContorno = null;
 let distritos, municipio;
 let abertos = [];                   // distritos com a calçada desenhada agora
 let trocandoNivel = false;          // trava do drill-down automático por zoom
@@ -92,10 +109,13 @@ const emCache = new Map();          // slug -> GeoJSON parseado, no máximo MAX_
 /* ---------------- escala de cor ---------------- */
 function faixa(valor, m) {
   if (valor == null || Number.isNaN(valor)) return cor("--sem-dado");
-  let t = Math.min(1, Math.max(0, valor / m.max));
-  if (m.pior === "baixo") t = 1 - t;          // escuro = pior, sempre
+  const t = Math.min(1, Math.max(0, valor / m.max));
   return cor(RAMPA[Math.min(RAMPA.length - 1, Math.floor(t * RAMPA.length))]);
 }
+
+/* O número como ele é: taxa leva "%", o score não leva nada. */
+const valorFmt = (v, m) => v == null || Number.isNaN(v) ? "—"
+  : m.un === "%" ? pct(v) : v.toFixed(1).replace(".", ",");
 
 function valorDe(props, m) {
   if (m.campo) return props[m.campo] == null ? null : props[m.campo];
@@ -180,7 +200,8 @@ function pintarCartoesCalcada(nome, mostradas, total, nomes = []) {
       <dt>faixa livre mediana</dt><dd>${metros(livres[Math.floor(n / 2)])}</dd>
       <dt>no Plano Emergencial</dt><dd>${pct(parte(p => p.pec))}</dd>
       <div class="sep"></div>
-      <div class="pessoas">A cor é ${escalaAtiva().rot}: mais forte, pior.
+      <div class="pessoas">A cor é ${escalaAtiva().rot}: mais forte, ${
+        escalaAtiva().alto === "melhor" ? "melhor" : "pior"}.
       Cada polígono é um trecho de calçada cadastrado pela Prefeitura.</div>
     </dl>`;
 }
@@ -197,9 +218,22 @@ function medirVista() {
   return dentro;
 }
 
+/* Todo controle que só age sobre a calçada fica cinza enquanto ela não está na
+ * tela: botão que aceita o clique e não faz nada parece defeito. */
+function atualizarControles() {
+  const semCalcada = !abertos.length;
+  for (const b of document.querySelectorAll("#pills-ponto button, #pills-filtro button")) {
+    b.disabled = semCalcada;
+    b.title = semCalcada ? "aproxime o mapa até a calçada aparecer" : "";
+  }
+  const fav = $("#btn-favela");
+  if (fav) fav.disabled = semCalcada;
+}
+
 /* Recalcula para o que está na tela. É a interação central do painel. */
 function atualizarPorVista() {
   const visiveis = medirVista();
+  atualizarControles();
   desenharTabela();
   if (abertos.length) return;          // no nível da calçada o cartão é outro
   const todos = visiveis.length === distritos.features.length;
@@ -280,7 +314,10 @@ function ligarDistrito(l, props) {
       <span class="v">${pct(valorDe(props, m))}</span><br>${num(props.cal_n)} calçadas`);
   });
   l.on("mouseout", escondeDica);
-  l.on("click", () => irParaDistrito(props));
+  // Clique no mapa não reenquadra: o usuário já está olhando para onde clicou,
+  // e um fitBounds no distrito inteiro o teleporta. Só aproxima se ainda não
+  // estiver perto o bastante, e mantendo o ponto clicado no centro.
+  l.on("click", e => irParaDistrito(props, false, e.latlng));
 }
 
 function desenharDistritos() {
@@ -295,13 +332,13 @@ function desenharDistritos() {
 
 /* ---------------- a calçada ---------------- */
 /* A escala padrão do nível da calçada é a faixa livre. */
-const ESCALA_PADRAO = {valor: p => p.livre_min, max: 3, pior: "baixo",
+const ESCALA_PADRAO = {valor: p => p.livre_min, max: 3, alto: "melhor",
                        rot: "faixa livre", pontas: ["0 m", "3 m ou mais"]};
 /* A nota vai de 0 a 100 por construção, mas a cidade real ocupa a ponta de
  * baixo: mediana 15, p99 igual a 53, e o melhor distrito tem média 32. Esticar
  * a rampa até 100 deixaria dois terços da escala sem uso e o mapa quase liso.
  * O teto do desenho é a faixa que existe, e a legenda diz isso. */
-const ESCALA_SCORE = {valor: p => p.score, max: 55, pior: "baixo",
+const ESCALA_SCORE = {valor: p => p.score, max: 55, alto: "melhor",
                       rot: "score de acessibilidade", pontas: ["0", "55 ou mais"]};
 
 /* Com um único filtro ligado, a cor passa a ser o indicador dele — desde que o
@@ -320,8 +357,7 @@ function escalaAtiva() {
 function corDaCalcada(p, e) {
   const v = e.valor(p);
   if (v == null || Number.isNaN(v)) return cor("--sem-dado");
-  let t = Math.min(1, Math.max(0, v / e.max));
-  if (e.pior === "baixo") t = 1 - t;
+  const t = Math.min(1, Math.max(0, v / e.max));
   return cor(RAMPA[Math.min(RAMPA.length - 1, Math.floor(t * RAMPA.length))]);
 }
 
@@ -395,11 +431,21 @@ async function entrarNoNivel(alvos) {
     $("#carregando").style.display = "none";
   }
   abertos = alvos;
+  // O contorno fica: sem a divisa desenhada, o mapa de calçadas vira uma malha
+  // sem referência e o usuário não sabe onde um distrito acaba.
+  if (!camadaContorno) {
+    camadaContorno = L.geoJSON(distritos, {
+      interactive: false, renderer: L.canvas({padding: .3}),
+      style: {fill: false, color: cor("--ink-3"), weight: .9, opacity: .8}});
+  }
+  if (!mapa.hasLayer(camadaContorno)) camadaContorno.addTo(mapa);
+  camadaContorno.bringToBack();
   montarCalcadas();
   if (camadaDistritos && mapa.hasLayer(camadaDistritos)) mapa.removeLayer(camadaDistritos);
   if (zoomDeAbertura == null) zoomDeAbertura = ZOOM_CALCADA;
   desenharLegenda();
   marcarLinha(abertos.map(p => p.NM_DIST));
+  atualizarControles();
   montarPontos();
   $("#voltar").hidden = false;
 }
@@ -408,9 +454,11 @@ function sairDoNivel() {
   abertos = [];
   zoomDeAbertura = null;
   if (camadaCalcadas) { mapa.removeLayer(camadaCalcadas); camadaCalcadas = null; }
+  if (camadaContorno) mapa.removeLayer(camadaContorno);
   desenharDistritos();
   desenharLegenda();
   marcarLinha([]);
+  atualizarControles();
   montarPontos();
   $("#voltar").hidden = true;
 }
@@ -423,9 +471,13 @@ function voltarACidade() {
 /* Clicar num distrito enquadra nele e força o nível da calçada: um distrito
  * grande enquadra em zoom 12, abaixo de ZOOM_CALCADA, e sem forçar o clique não
  * mostraria calçada nenhuma. Os vizinhos que couberem na tela vêm junto. */
-async function irParaDistrito(props) {
+async function irParaDistrito(props, enquadrar = true, ponto = null) {
   const l = camadaDistritos.getLayers().find(x => x.feature.properties.id === props.id);
-  if (l) mapa.fitBounds(l.getBounds(), {padding: [24, 24], animate: false});
+  if (enquadrar && l) {
+    mapa.fitBounds(l.getBounds(), {padding: [24, 24], animate: false});
+  } else if (mapa.getZoom() < ZOOM_CALCADA) {
+    mapa.setView(ponto || mapa.getCenter(), ZOOM_CALCADA, {animate: false});
+  }
   trocandoNivel = true;
   try {
     zoomDeAbertura = Math.min(ZOOM_CALCADA, mapa.getZoom());
@@ -469,10 +521,6 @@ async function montarPontos() {
     Object.values(camadasPonto).forEach(c => mapa.removeLayer(c));
     camadasPonto = {};
     const ativos = [...pontosLigados].filter(k => PONTOS[k]);
-    for (const k of Object.keys(PONTOS)) {
-      const b = $(`#pt-${k}`);
-      if (b) b.disabled = !abertos.length;
-    }
     if (!abertos.length || !ativos.length) return;
     const dados = await Promise.all(abertos.map(p => carregarPontos(p.id)));
     const vista = mapa.getBounds();
@@ -519,18 +567,19 @@ function desenharTabela() {
                            : `${fs.length} na tela`;
   $("#tabela").innerHTML = fs.length === 0 ? `<p class="tab-vazia">nenhum distrito ${
     buscando ? "com esse nome" : "nesta vista"}</p>` : `
+    <p class="tab-base">${m.rot}: ${m.base}</p>
     <table class="tab">
       <thead><tr>
         <th scope="col">distrito <span class="quantos">${quantos}</span></th>
         <th scope="col"><button id="ordenar" aria-label="ordenar por ${m.rot}, ${
-          ordemAsc ? "crescente" : "decrescente"}">${m.rot} ${ordemAsc ? "▲" : "▼"}</button></th>
+          ordemAsc ? "crescente" : "decrescente"}">${m.un || "nota"} ${ordemAsc ? "▲" : "▼"}</button></th>
       </tr></thead>
       <tbody>${fs.map(p => {
         const v = valorDe(p, m);
         return `<tr data-d="${p.NM_DIST}" aria-current="false">
           <th scope="row"><button title="${p.NM_DIST}">${p.NM_DIST}</button></th>
           <td><span class="barra" style="width:${Math.min(100, 100 * v / m.max).toFixed(1)}%"></span>
-              <span class="v">${pct(v)}</span></td></tr>`;
+              <span class="v">${valorFmt(v, m)}</span></td></tr>`;
       }).join("")}</tbody>
     </table>`;
   const ord = $("#ordenar");
@@ -560,7 +609,7 @@ function desenharControles() {
     </div></div>
     <div class="grupo"><span>mostrar só as calçadas que</span><div class="pills" id="pills-filtro">
       ${Object.entries(FILTROS).map(([k, f]) =>
-        `<button data-f="${k}" aria-pressed="false">${f.rot}</button>`).join("")}
+        `<button data-f="${k}" aria-pressed="false" disabled>${f.rot}</button>`).join("")}
     </div></div>
     <div class="grupo"><span>filtro avançado</span><div class="pills" id="pills-ponto">
       ${Object.entries(PONTOS).map(([k, o]) =>
@@ -568,7 +617,7 @@ function desenharControles() {
            title="aproxime o mapa até a calçada aparecer">${o.rot}</button>`).join("")}
     </div></div>
     <div class="grupo"><span>recorte</span><div class="pills">
-      <button id="btn-favela" aria-pressed="false">só favela e comunidade urbana</button>
+      <button id="btn-favela" aria-pressed="false" disabled>só favela e comunidade urbana</button>
       <button id="voltar" hidden>voltar à cidade</button>
     </div></div>`;
 
@@ -612,16 +661,15 @@ function repintar() {
 
 function desenharLegenda() {
   const m = METRICAS[metrica];
-  // A rampa é sempre clara→escura da esquerda para a direita. Invertê-la quando
-  // "pior" é o valor baixo fazia a escala saltar de lado ao trocar a métrica;
-  // quem troca de ponta são os números, e "escuro = pior" continua valendo.
-  const [esq, dir] = m.pior === "baixo" ? [`${m.max}%`, "0%"] : ["0%", `${m.max}%`];
+  // Nada troca de lado: o menor sempre à esquerda, o maior sempre à direita, a
+  // cor sempre crescendo junto. Quem muda é a frase — em "com rampa" e no score
+  // muito é bom, nos demais muito é ruim.
   if (abertos.length) {
-    // Mesma regra da cidade: a rampa não troca de lado, os números é que trocam.
     const e = escalaAtiva();
-    const [a, b] = e.pior === "baixo" ? [e.pontas[1], e.pontas[0]] : e.pontas;
+    const [a, b] = e.pontas;
     $("#legenda").innerHTML = `
-      <div class="titulo">${e.rot} da calçada — mais forte = pior</div>
+      <div class="titulo">${e.rot} da calçada — mais forte, ${
+        e.alto === "melhor" ? "melhor" : "pior"}</div>
       <div class="escala">${RAMPA.map(s => `<i style="background:${cor(s)}"></i>`).join("")}</div>
       <div class="escala-rot"><span>${a}</span><span>${b}</span></div>
       <div class="nd"><i></i>sem medida</div>`;
@@ -630,7 +678,8 @@ function desenharLegenda() {
   $("#legenda").innerHTML = `
     <div class="titulo">${m.rot}${m.dica ? ` — ${m.dica}` : ""}</div>
     <div class="escala">${RAMPA.map(s => `<i style="background:${cor(s)}"></i>`).join("")}</div>
-    <div class="escala-rot"><span>${esq}</span><span>mais forte = pior</span><span>${dir}</span></div>
+    <div class="escala-rot"><span>0${m.un}</span><span>mais forte, ${
+      m.alto === "melhor" ? "melhor" : "pior"}</span><span>${m.max}${m.un}</span></div>
     <div class="nd"><i></i>sem calçada cadastrada</div>`;
 }
 
@@ -716,9 +765,10 @@ function autoteste() {
   desenharLegenda();
   desenharTabela();
   mapa.fitBounds(camadaDistritos.getBounds(), {padding: [12, 12], animate: false});
-  // O mapa fica preso no município: sem isso dá para arrastar até os Estados
-  // Unidos e o dashboard vira um mapa-múndi cinza sem nenhum dado.
-  const limite = camadaDistritos.getBounds().pad(0.06);
+  // O mapa fica preso no município, mas com folga: o painel de cartões cobre o
+  // canto superior esquerdo, e sem margem os distritos daquela borda ficam
+  // impossíveis de ver. Uma cidade de folga em volta resolve sem soltar o mapa.
+  const limite = camadaDistritos.getBounds().pad(0.45);
   mapa.setMaxBounds(limite);
   mapa.setMinZoom(mapa.getBoundsZoom(limite));
   $("#carregando").style.display = "none";
