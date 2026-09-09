@@ -12,9 +12,7 @@ const num = n => Math.round(n).toLocaleString("pt-BR");
 const pct = (n, c = 1) => n == null || Number.isNaN(n) ? "—" : n.toFixed(c).replace(".", ",") + "%";
 const metros = n => n == null || Number.isNaN(n) ? "—" : n.toFixed(2).replace(".", ",") + " m";
 
-const BBOX_PILOTO = [[-23.5717, -46.7030], [-23.5482, -46.6805]];
 const ZOOM_CALCADA = 14;    // a partir daqui o mapa troca sozinho para a calçada
-const ZOOM_PONTOS = 13;     // a partir daqui, árvore e poste um a um (só no piloto)
 const MAX_DISTRITOS = 6;    // quantos distritos de calçada desenhar ao mesmo tempo
 const LIMITE_FEICOES = 45000;  // teto de polígonos na tela; o canvas engasga acima
 const MAX_EM_CACHE = 8;     // um distrito chega a 5 MB de JSON: não guardar os 96
@@ -29,6 +27,8 @@ const DECLIVIDADE_MAX = 8.33;
  * `campo` já é uma taxa pronta (GeoSampa, por calçada); `num`/`den` são
  * contagens do Censo que o cartão soma. `pior` diz para que lado escurece. */
 const METRICAS = {
+  score:      {rot: "score de acessibilidade", campo: "cal_score", pior: "baixo", max: 35,
+               dica: "sombra e luz somam, reclamação desconta"},
   barreira:   {rot: "barreira", campo: "cal_barreira", pior: "alto", max: 90,
                dica: "calçada estreita ou íngreme"},
   estreita:   {rot: "estreita", campo: "cal_estreita", pior: "alto", max: 90,
@@ -82,9 +82,8 @@ const ligados = new Set();          // filtros ativos
 let ordemAsc = false;               // a tabela começa pelo pior
 let busca = "";                     // texto da barra de busca
 let naVista = null;                 // distritos dentro do enquadramento atual
-let mapa, camadaDistritos, camadaCalcadas = null,
-    camadaArvores = null, camadaPostes = null;
-let distritos, municipio, piloto = {};
+let mapa, camadaDistritos, camadaCalcadas = null;
+let distritos, municipio;
 let abertos = [];                   // distritos com a calçada desenhada agora
 let trocandoNivel = false;          // trava do drill-down automático por zoom
 let zoomDeAbertura = null;          // abaixo dele, o mapa volta para a cidade
@@ -298,6 +297,12 @@ function desenharDistritos() {
 /* A escala padrão do nível da calçada é a faixa livre. */
 const ESCALA_PADRAO = {valor: p => p.livre_min, max: 3, pior: "baixo",
                        rot: "faixa livre", pontas: ["0 m", "3 m ou mais"]};
+/* A nota vai de 0 a 100 por construção, mas a cidade real ocupa a ponta de
+ * baixo: mediana 15, p99 igual a 53, e o melhor distrito tem média 32. Esticar
+ * a rampa até 100 deixaria dois terços da escala sem uso e o mapa quase liso.
+ * O teto do desenho é a faixa que existe, e a legenda diz isso. */
+const ESCALA_SCORE = {valor: p => p.score, max: 55, pior: "baixo",
+                      rot: "score de acessibilidade", pontas: ["0", "55 ou mais"]};
 
 /* Com um único filtro ligado, a cor passa a ser o indicador dele — desde que o
  * indicador ainda varie entre as calçadas que sobraram. "Sem obstáculo" e "no
@@ -308,6 +313,7 @@ function escalaAtiva() {
     const e = FILTROS[[...ligados][0]].escala;
     if (e) return e;
   }
+  if (metrica === "score") return ESCALA_SCORE;   // a métrica escolhida tem versão por calçada
   return ESCALA_PADRAO;
 }
 
@@ -329,6 +335,17 @@ function montarCalcadas() {
   const e = escalaAtiva();
   const gj = {type: "FeatureCollection",
               features: abertos.flatMap(p => emCache.get(p.id).features)};
+  // A nota da rua é a média dos trechos com o mesmo nome, calculada aqui com o
+  // que já está carregado: guardá-la por feição seria repetir 491 mil vezes um
+  // número que o navegador refaz em milissegundos.
+  scoreDaRua = new Map();
+  for (const f of gj.features) {
+    const r = f.properties.rua;
+    if (!r) continue;
+    const a = scoreDaRua.get(r) || [0, 0];
+    scoreDaRua.set(r, [a[0] + f.properties.score, a[1] + 1]);
+  }
+  for (const [r, [soma, n]] of scoreDaRua) scoreDaRua.set(r, Math.round(soma / n));
   if (camadaCalcadas) mapa.removeLayer(camadaCalcadas);
   camadaCalcadas = L.geoJSON(gj, {
     renderer: L.canvas({padding: .3}),
@@ -344,9 +361,11 @@ function montarCalcadas() {
       // a largura cadastrada é a faixa livre de volta com a faixa de serviço
       const larg = p.livre_min + (p.obst > 0 ? FAIXA_SERVICO : 0);
       l.on("mousemove", e => dica(e, `<b>${p.rua || "via sem nome"}</b><br>
-        faixa livre <span class="v">${metros(p.livre_min)}</span><br>
-        largura ${metros(larg)} · declive ${pct(p.declive)}<br>
-        ${p.obst} obstáculo${p.obst === 1 ? "" : "s"}${p.pec ? " · Plano Emergencial" : ""}`));
+        score <span class="v">${p.score}</span> neste trecho${
+          scoreDaRua.has(p.rua) ? `, <span class="v">${scoreDaRua.get(p.rua)}</span> na rua` : ""}<br>
+        faixa livre ${metros(p.livre_min)} · declive ${pct(p.declive)}<br>
+        largura ${metros(larg)} · ${p.obst} obstáculo${p.obst === 1 ? "" : "s"}${
+          p.pec ? " · Plano Emergencial" : ""}`));
       l.on("mouseout", escondeDica);
     }
   }).addTo(mapa);
@@ -381,6 +400,7 @@ async function entrarNoNivel(alvos) {
   if (zoomDeAbertura == null) zoomDeAbertura = ZOOM_CALCADA;
   desenharLegenda();
   marcarLinha(abertos.map(p => p.NM_DIST));
+  montarPontos();
   $("#voltar").hidden = false;
 }
 
@@ -391,6 +411,7 @@ function sairDoNivel() {
   desenharDistritos();
   desenharLegenda();
   marcarLinha([]);
+  montarPontos();
   $("#voltar").hidden = true;
 }
 
@@ -412,38 +433,71 @@ async function irParaDistrito(props) {
   } finally { trocandoNivel = false; }
 }
 
-/* Árvore e poste desenhados um a um só existem no recorte do piloto: são as
- * únicas camadas de ponto em disco. Fora dali os botões ficam desligados — e o
- * `title` diz por quê, senão o botão apagado parece defeito. */
-async function alternarPontos() {
-  const dentro = mapa.getZoom() >= ZOOM_PONTOS &&
-                 mapa.getBounds().intersects(L.latLngBounds(BBOX_PILOTO));
-  $("#lay-arvores").disabled = $("#lay-postes").disabled = !dentro;
-  if (!dentro) {
-    [camadaArvores, camadaPostes].forEach(c => c && mapa.removeLayer(c));
-    camadaArvores = camadaPostes = null;
-    return;
-  }
-  if (camadaArvores || piloto.montando) return;
-  piloto.montando = true;
-  try {
-    if (!piloto.arvores) {
-      [piloto.arvores, piloto.postes] = await Promise.all([
-        fetch("dados/piloto_arvores.json").then(r => r.json()),
-        fetch("dados/piloto_postes.json").then(r => r.json())]);
+/* ---------------- filtro avançado: os pontos ---------------- */
+/* Árvore, poste e reclamação da cidade inteira, um arquivo por distrito. As
+ * cores são deliberadamente fora da rampa azul da calçada: sobrepostas a ela,
+ * uma cor da mesma família viraria mais um tom da escala. */
+const PONTOS = {
+  arvores:    {rot: "árvores", cor: "--pt-arvore", r: 1.7},
+  postes:     {rot: "postes", cor: "--pt-poste", r: 1.4},
+  incidentes: {rot: "incidentes reportados", cor: "--pt-incidente", r: 3.2},
+};
+const pontosLigados = new Set();
+const pontosEmCache = new Map();
+let camadasPonto = {};
+let scoreDaRua = new Map();
+let montandoPontos = false;
+
+async function carregarPontos(id) {
+  if (!pontosEmCache.has(id)) {
+    pontosEmCache.set(id, await fetch(`dados/pontos/${id}.json`)
+      .then(r => r.ok ? r.json() : {}).catch(() => ({})));
+    for (const k of [...pontosEmCache.keys()]) {
+      if (pontosEmCache.size <= MAX_EM_CACHE) break;
+      if (!abertos.some(p => p.id === k)) pontosEmCache.delete(k);
     }
-    // UMA tela para os 19.783 pontos. `L.canvas()` chamado aqui dentro do map
-    // criava um renderer por marcador — 19.783 canvas — e travava o navegador.
-    // O gate de zoom 15 escondia o defeito: este caminho quase nunca rodava.
-    const tela = L.canvas({padding: .3});
-    const pt = (lista, c, r) => L.layerGroup(lista.map(([x, y]) =>
-      L.circleMarker([y, x], {radius: r, color: c, weight: 0, fillOpacity: .75,
-                              renderer: tela})));
-    camadaArvores = pt(piloto.arvores, cor("--serie-1"), 1.8);
-    camadaPostes = pt(piloto.postes, cor("--serie-2"), 1.4);
-    if ($("#lay-arvores").getAttribute("aria-pressed") === "true") camadaArvores.addTo(mapa);
-    if ($("#lay-postes").getAttribute("aria-pressed") === "true") camadaPostes.addTo(mapa);
-  } finally { piloto.montando = false; }
+  }
+  return pontosEmCache.get(id);
+}
+
+/* Só desenha o que está no enquadramento: seis distritos dão 80 mil pontos, e
+ * um marcador por ponto fora da tela é trabalho jogado fora. */
+async function montarPontos() {
+  if (montandoPontos) return;
+  montandoPontos = true;
+  try {
+    Object.values(camadasPonto).forEach(c => mapa.removeLayer(c));
+    camadasPonto = {};
+    const ativos = [...pontosLigados].filter(k => PONTOS[k]);
+    for (const k of Object.keys(PONTOS)) {
+      const b = $(`#pt-${k}`);
+      if (b) b.disabled = !abertos.length;
+    }
+    if (!abertos.length || !ativos.length) return;
+    const dados = await Promise.all(abertos.map(p => carregarPontos(p.id)));
+    const vista = mapa.getBounds();
+    const tela = L.canvas({padding: .2});
+    // O ponto é contexto, a calçada é o conteúdo. Num zoom de seis distritos,
+    // 15 mil árvores em tamanho cheio viram uma malha sólida e escondem o mapa:
+    // o raio e a opacidade acompanham a aproximação.
+    const z = mapa.getZoom();
+    const escala = z >= 17 ? 1.8 : z >= 16 ? 1.4 : z >= 15 ? 1 : .65;
+    const opacidade = z >= 16 ? .85 : z >= 15 ? .7 : .5;
+    for (const k of ativos) {
+      const marcas = [];
+      for (const d of dados) {
+        for (const [x, y] of d[k] || []) {
+          if (vista.contains([y, x])) {
+            marcas.push(L.circleMarker([y, x], {
+              radius: PONTOS[k].r * (k === "incidentes" ? 1 : escala),
+              color: cor(PONTOS[k].cor), weight: 0,
+              fillOpacity: k === "incidentes" ? .95 : opacidade, renderer: tela}));
+          }
+        }
+      }
+      camadasPonto[k] = L.layerGroup(marcas).addTo(mapa);
+    }
+  } finally { montandoPontos = false; }
 }
 
 /* ---------------- tabela de distritos ---------------- */
@@ -508,11 +562,10 @@ function desenharControles() {
       ${Object.entries(FILTROS).map(([k, f]) =>
         `<button data-f="${k}" aria-pressed="false">${f.rot}</button>`).join("")}
     </div></div>
-    <div class="grupo"><span>camadas do piloto</span><div class="pills">
-      <button id="lay-arvores" aria-pressed="true" disabled
-        title="árvores desenhadas uma a uma só existem em Pinheiros e Vila Madalena; aproxime o mapa lá">árvores</button>
-      <button id="lay-postes" aria-pressed="true" disabled
-        title="postes desenhados um a um só existem em Pinheiros e Vila Madalena; aproxime o mapa lá">postes</button>
+    <div class="grupo"><span>filtro avançado</span><div class="pills" id="pills-ponto">
+      ${Object.entries(PONTOS).map(([k, o]) =>
+        `<button id="pt-${k}" data-p="${k}" aria-pressed="false" disabled
+           title="aproxime o mapa até a calçada aparecer">${o.rot}</button>`).join("")}
     </div></div>
     <div class="grupo"><span>recorte</span><div class="pills">
       <button id="btn-favela" aria-pressed="false">só favela e comunidade urbana</button>
@@ -534,14 +587,13 @@ function desenharControles() {
     montarCalcadas();
     desenharLegenda();   // com um filtro só, a escala de cor passa a ser a dele
   };
-  const alterna = (id, camada) => $(id).onclick = () => {
-    const on = $(id).getAttribute("aria-pressed") !== "true";
-    $(id).setAttribute("aria-pressed", on);
-    const c = camada();
-    if (c) on ? c.addTo(mapa) : mapa.removeLayer(c);
+  $("#pills-ponto").onclick = e => {
+    const b = e.target.closest("button"); if (!b || b.disabled) return;
+    const k = b.dataset.p;
+    pontosLigados.has(k) ? pontosLigados.delete(k) : pontosLigados.add(k);
+    b.setAttribute("aria-pressed", pontosLigados.has(k));
+    montarPontos();
   };
-  alterna("#lay-arvores", () => camadaArvores);
-  alterna("#lay-postes", () => camadaPostes);
   $("#btn-favela").onclick = () => {
     soFavela = !soFavela;
     $("#btn-favela").setAttribute("aria-pressed", soFavela);
@@ -553,6 +605,7 @@ function desenharControles() {
 
 function repintar() {
   if (camadaDistritos && !abertos.length) camadaDistritos.setStyle(f => estilo(f.properties));
+  if (abertos.length) montarCalcadas();   // "score" também pinta a calçada
   desenharLegenda();
   desenharTabela();
 }
@@ -670,9 +723,13 @@ function autoteste() {
   mapa.setMinZoom(mapa.getBoundsZoom(limite));
   $("#carregando").style.display = "none";
 
-  mapa.on("moveend zoomend", adiar(() => { porZoom(); atualizarPorVista(); alternarPontos(); }));
+  mapa.on("moveend zoomend", adiar(async () => {
+    await porZoom();
+    atualizarPorVista();
+    montarPontos();
+  }));
 
-  // Link direto para uma vista: #m=rampa&d=grajau&f=larga,livre
+  // Link direto para uma vista: #m=score&d=grajau&f=larga&p=arvores,incidentes
   const par = new URLSearchParams(location.hash.slice(1));
   if (METRICAS[par.get("m")]) {
     metrica = par.get("m");
@@ -683,6 +740,10 @@ function autoteste() {
   (par.get("f") || "").split(",").filter(k => FILTROS[k]).forEach(k => {
     ligados.add(k);
     $(`#pills-filtro button[data-f="${k}"]`).setAttribute("aria-pressed", "true");
+  });
+  (par.get("p") || "").split(",").filter(k => PONTOS[k]).forEach(k => {
+    pontosLigados.add(k);
+    $(`#pt-${k}`).setAttribute("aria-pressed", "true");
   });
   const alvo = par.get("d") &&
     distritos.features.find(f => f.properties.id === par.get("d"));

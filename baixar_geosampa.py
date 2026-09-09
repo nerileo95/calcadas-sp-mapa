@@ -10,8 +10,10 @@ a sessão gráfica:
         python3 baixar_geosampa.py
 
 O serviço cai com frequência, então cada página vira um arquivo e uma segunda
-execução pula o que já está em disco. Só a geometria e o identificador são
-pedidos: o resto do cadastro não é usado e multiplicaria o download por cinco.
+execução pula o que já está em disco. Só a geometria é pedida: o resto do
+cadastro não é usado e multiplicaria o download por cinco. O nome do campo de
+identificação muda de camada para camada, e pedir o errado devolve HTTP 400 —
+mais um motivo para não pedir.
 """
 
 import io
@@ -51,7 +53,7 @@ def quantas(camada):
 def pagina(camada, geom, inicio, tentativas=4):
     params = {"service": "WFS", "version": "2.0.0", "request": "GetFeature",
               "typeNames": camada, "outputFormat": "application/json",
-              "srsName": "EPSG:4326", "propertyName": f"cd_identificador,{geom}",
+              "srsName": "EPSG:4326", "propertyName": geom,
               "count": PAGINA, "startIndex": inicio}
     for tentativa in range(tentativas):
         try:

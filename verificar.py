@@ -117,12 +117,39 @@ def main():
     confere("rampa, em favela", fav["em_favela"]["rampa"], 100 * em.V05427 / em.V05421)
     confere("rampa, fora", fav["fora"]["rampa"], 100 * fora.V05427 / fora.V05421)
 
-    print("\n6. O piloto de Pinheiros")
+    print("\n6. O piloto de Pinheiros (âncoras já apresentadas à banca)")
+    # O piloto não é mais publicado — a cidade inteira o cobre. O parquet fica
+    # como fonte de conferência: é o único recorte com faixa livre calculada
+    # fora deste repositório, e é o que prende a fórmula aos números do slide.
     p = gpd.read_parquet(FONTES / "piloto_calcadas.parquet")
-    pg = gpd.read_file(SAIDA / "piloto_calcadas.geojson")
-    confere("calçadas no piloto", len(pg), len(p), 0)
     confere("26,3% abaixo de 1,20 m de faixa livre", 100 * (p.livre_min < 1.20).mean(), 26.3, 0.05)
     confere("51,8% com ao menos uma árvore", 100 * (p.arvores > 0).mean(), 51.8, 0.05)
+
+    print("\n7. O score de acessibilidade e os pontos")
+    mc = m["calcadas"]
+    ponderado = (d.cal_score * d.cal_n).sum() / d.cal_n.sum()
+    confere("score do município = ponderado pelos distritos", ponderado, mc["score"], 0.1)
+    amostra = d.sort_values("cal_n", ascending=False).iloc[[0, len(d) // 2, -1]]
+    for _, linha in amostra.iterrows():
+        arq = gpd.read_file(SAIDA / "calcadas" / f"{linha.id}.geojson")
+        confere(f"score médio em {linha.NM_DIST}", arq.score.mean(), linha.cal_score, 0.1)
+        confere(f"score dentro de 0..100 em {linha.NM_DIST}",
+                float(arq.score.between(0, 100).all()), 1.0, 0)
+
+    arquivos = sorted((SAIDA / "pontos").glob("*.json"))
+    confere("um arquivo de pontos por distrito", len(arquivos), setores.NM_DIST.nunique(), 0)
+    somas = {"arvores": 0, "postes": 0, "incidentes": 0}
+    for a in arquivos:
+        for k, v in json.loads(a.read_text()).items():
+            somas[k] += len(v)
+    fonte = {"arvores": ["geo_arvores.parquet"], "postes": ["geo_postes.parquet"],
+             "incidentes": ["geo_sac_mato.parquet", "geo_sac_arvore_risco.parquet",
+                            "geo_sac_arvore_urg.parquet"]}
+    for k, arqs in fonte.items():
+        bruto = sum(len(gpd.read_parquet(FONTES / f)) for f in arqs)
+        # Alguns pontos caem fora da malha censitária; a perda tem que ser pequena.
+        confere(f"{k} repartidos por distrito (perda < 2%)",
+                100 * somas[k] / bruto, 100, 2.0)
 
     print()
     if falhas:

@@ -20,6 +20,9 @@
   --s500:#256abf; --s600:#184f95; --s700:#0d366b;
   --serie-1:#2a78d6;   /* calçada estreita */
   --serie-2:#eb6834;   /* calçada íngreme */
+  /* pontos do filtro avançado: fora da família azul da rampa, senão viram
+     mais um tom da escala quando caem em cima da calçada */
+  --pt-arvore:#2f7d32; --pt-poste:#b26b00; --pt-incidente:#c2185b;
   --sem-dado:#d9d8d3;
   --sombra:0 1px 2px rgba(11,11,11,.05), 0 12px 32px -18px rgba(11,11,11,.3);
 }
@@ -31,6 +34,7 @@
   --s100:#0d366b; --s200:#184f95; --s300:#256abf; --s400:#3987e5;
   --s500:#5598e7; --s600:#86b6ef; --s700:#cde2fb;
   --serie-1:#3987e5; --serie-2:#d95926;
+  --pt-arvore:#6cc16f; --pt-poste:#f0a94b; --pt-incidente:#f06292;
   --sem-dado:#3a3a36;
   --sombra:0 1px 2px rgba(0,0,0,.5), 0 12px 32px -18px rgba(0,0,0,.8);
 }}
@@ -42,6 +46,7 @@
   --s100:#0d366b; --s200:#184f95; --s300:#256abf; --s400:#3987e5;
   --s500:#5598e7; --s600:#86b6ef; --s700:#cde2fb;
   --serie-1:#3987e5; --serie-2:#d95926;
+  --pt-arvore:#6cc16f; --pt-poste:#f0a94b; --pt-incidente:#f06292;
   --sem-dado:#3a3a36;
   --sombra:0 1px 2px rgba(0,0,0,.5), 0 12px 32px -18px rgba(0,0,0,.8);
 }
@@ -211,16 +216,28 @@ footer b{color:var(--ink-2)}
   para uma árvore e para quarenta, porque o cadastro não diz onde o obstáculo está. É por isso que a
   faixa livre chega a ficar negativa. <i>Íngreme</i> é declividade média acima de 8,33% (1:12).
   <i>Barreira</i> é uma coisa ou a outra.</p>
+  <p><b>O score de acessibilidade.</b> Uma nota de 0 a 100 por trecho de calçada, com a estrutura de
+  pesos do motor de rotas do trabalho integrador: sombra 0,30, iluminação 0,20, largura livre 0,20,
+  declividade 0,15, e reclamação descontando 0,15. A densidade de árvore e de poste é por 100 m de
+  calçada, com o comprimento estimado pela área sobre a largura média — o cadastro não traz
+  comprimento. A mesma árvore entra duas vezes e com sinais opostos, de propósito: ela desconta
+  0,70 m da faixa livre e soma sombra. Uma calçada larga e arborizada ganha nas duas pontas; uma
+  estreita com árvore no meio perde mais na largura do que ganha na sombra. A nota da rua é a média
+  dos trechos com o mesmo nome de logradouro.</p>
+  <p><b>Incidentes reportados.</b> Capinação de guia e sarjeta, risco de queda de árvore e árvore em
+  urgência — 7.006 chamados georreferenciados do GeoSampa, contados a até 20 m da calçada porque o
+  chamado é um endereço e cai na via. <i>Não</i> é o SP156: os 49.215 pedidos de calçada de 2020 a
+  2025 que aparecem na apresentação são outra base, ainda não integrada. Tapa-buraco ficou de fora
+  por ser da via, não da calçada.</p>
   <p><b>O que o dado não diz.</b> O cadastro descreve a <i>geometria</i> da calçada, não o estado
-  dela: não há buraco, piso solto nem rampa de esquina. Rampa para cadeirante só existe no Censo, por
-  face de quadra — por isso ela aparece como métrica do distrito e nunca como filtro de calçada.
-  Árvore e poste desenhados um a um existem só em Pinheiros e Vila Madalena; a contagem de
-  obstáculos, essa sim, é da cidade inteira.</p>
+  dela: não há buraco de calçada, piso solto nem rampa de esquina. Rampa para cadeirante só existe no
+  Censo, por face de quadra — por isso ela aparece como métrica do distrito e nunca como filtro de
+  calçada.</p>
   <p><a href="https://github.com/nerileo95/calcadas-sp-mapa">Código, dados e script de preparação no GitHub</a>
   · Insper, Prática Avançada em Data Science and Visualization</p>
 </footer>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="app.js?v=3"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>
