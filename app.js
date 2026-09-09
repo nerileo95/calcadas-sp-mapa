@@ -126,7 +126,8 @@ const ligados = new Set();          // filtros ativos
 let ordemAsc = false;               // a tabela começa pelo pior
 let busca = "";                     // texto da barra de busca
 let naVista = null;                 // distritos dentro do enquadramento atual
-let mapa, camadaDistritos, camadaCalcadas = null, camadaContorno = null;
+let mapa, camadaDistritos, camadaCalcadas = null, camadaContorno = null,
+    camadaRotulos = null;
 let distritos, municipio;
 let abertos = [];                   // distritos com a calçada desenhada agora
 let trocandoNivel = false;          // trava do drill-down automático por zoom
@@ -378,6 +379,30 @@ async function porZoom() {
 }
 
 /* ---------------- camadas ---------------- */
+/* O véu é o mesmo coroplético, quase transparente: a cor do distrito continua
+ * lá embaixo enquanto a calçada é desenhada por cima. */
+function estiloVeu(f) {
+  return {fillColor: faixa(valorDe(f.properties, METRICAS[metrica]), METRICAS[metrica]),
+          fillOpacity: .14, color: cor("--ink-3"), weight: 1, opacity: .75};
+}
+
+/* O nome do distrito escrito no mapa. Só os que estão carregados: 96 rótulos
+ * seriam ruído, e o que o usuário precisa é saber onde ele está agora. */
+function desenharRotulos() {
+  if (camadaRotulos) mapa.removeLayer(camadaRotulos);
+  camadaRotulos = L.layerGroup(abertos.map(p => {
+    const l = camadaDistritos.getLayers().find(x => x.feature.properties.id === p.id);
+    if (!l) return null;
+    // getBounds().getCenter(), não getCenter(): o segundo exige que a camada
+    // esteja NO mapa, e ao trocar de distrito com a calçada já na tela ela não
+    // está. O erro quebrava a promessa do moveend e a tabela parava de
+    // acompanhar o enquadramento — parecendo desatualizada sem motivo.
+    return L.marker(l.getBounds().getCenter(), {interactive: false, keyboard: false,
+      icon: L.divIcon({className: "rotulo-distrito", html: p.NM_DIST,
+                       iconSize: null, iconAnchor: [0, 0]})});
+  }).filter(Boolean)).addTo(mapa);
+}
+
 function estilo(props) {
   return {fillColor: faixa(valorDe(props, METRICAS[metrica]), METRICAS[metrica]),
           fillOpacity: .78, color: cor("--surface"), weight: .8};
@@ -518,15 +543,15 @@ async function entrarNoNivel(alvos) {
     $("#carregando").style.display = "none";
   }
   abertos = alvos;
-  // O contorno fica: sem a divisa desenhada, o mapa de calçadas vira uma malha
-  // sem referência e o usuário não sabe onde um distrito acaba.
+  // Três âncoras para não perder a referência quando o coroplético some: um véu
+  // do distrito na mesma cor da métrica, a divisa desenhada e o nome escrito.
   if (!camadaContorno) {
     camadaContorno = L.geoJSON(distritos, {
-      interactive: false, renderer: L.canvas({padding: .3}),
-      style: {fill: false, color: cor("--ink-3"), weight: .9, opacity: .8}});
+      interactive: false, renderer: L.canvas({padding: .3}), style: estiloVeu});
   }
   if (!mapa.hasLayer(camadaContorno)) camadaContorno.addTo(mapa);
   camadaContorno.bringToBack();
+  desenharRotulos();
   montarCalcadas();
   if (camadaDistritos && mapa.hasLayer(camadaDistritos)) mapa.removeLayer(camadaDistritos);
   if (zoomDeAbertura == null) zoomDeAbertura = ZOOM_CALCADA;
@@ -534,6 +559,7 @@ async function entrarNoNivel(alvos) {
   marcarLinha(abertos.map(p => p.NM_DIST));
   atualizarControles();
   montarPontos();
+  document.querySelector(".envelope-mapa").classList.add("perto");
   $("#voltar").hidden = false;
 }
 
@@ -542,11 +568,13 @@ function sairDoNivel() {
   zoomDeAbertura = null;
   if (camadaCalcadas) { mapa.removeLayer(camadaCalcadas); camadaCalcadas = null; }
   if (camadaContorno) mapa.removeLayer(camadaContorno);
+  if (camadaRotulos) { mapa.removeLayer(camadaRotulos); camadaRotulos = null; }
   desenharDistritos();
   desenharLegenda();
   marcarLinha([]);
   atualizarControles();
   montarPontos();
+  document.querySelector(".envelope-mapa").classList.remove("perto");
   $("#voltar").hidden = true;
 }
 
@@ -649,6 +677,10 @@ const semAcento = s => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLower
  * resto, e o cabeçalho escolhe a direção. */
 function desenharTabela() {
   const m = METRICAS[metrica];
+  // Mede o enquadramento aqui, sempre. Guardar a medição de antes fazia a tabela
+  // listar distritos que já tinham saído da tela quando ela era redesenhada por
+  // outro motivo — troca de métrica, de ordem — sem um moveend no meio.
+  medirVista();
   const termo = semAcento(busca.trim());
   const todos = distritos.features.map(f => f.properties).filter(p => valorDe(p, m) != null);
   const buscando = termo.length > 0;
@@ -714,7 +746,6 @@ function desenharControles() {
     <div class="grupo"><span>recorte</span><div class="pills">
       <button id="btn-favela" aria-pressed="false" disabled
         data-ajuda="Mostra só as calçadas em setor censitário classificado como favela ou comunidade urbana pelo IBGE.">só favela e comunidade urbana</button>
-      <button id="voltar" hidden>voltar à cidade</button>
     </div></div>`;
 
   $("#pills-metrica").onclick = e => {
@@ -750,6 +781,7 @@ function desenharControles() {
 
 function repintar() {
   if (camadaDistritos && !abertos.length) camadaDistritos.setStyle(f => estilo(f.properties));
+  if (camadaContorno) camadaContorno.setStyle(estiloVeu);
   if (abertos.length) montarCalcadas();   // "score" também pinta a calçada
   desenharLegenda();
   desenharTabela();
@@ -870,9 +902,10 @@ function autoteste() {
   $("#carregando").style.display = "none";
 
   mapa.on("moveend zoomend", adiar(async () => {
-    await porZoom();
-    atualizarPorVista();
-    montarPontos();
+    // O painel tem que acompanhar o mapa mesmo se a troca de nível falhar: sem
+    // o finally, um erro lá dentro congelava a tabela na vista anterior.
+    try { await porZoom(); } catch (e) { console.error("troca de nível:", e); }
+    finally { atualizarPorVista(); montarPontos(); }
   }));
 
   // Link direto para uma vista: #m=score&d=grajau&f=larga&p=arvores,incidentes

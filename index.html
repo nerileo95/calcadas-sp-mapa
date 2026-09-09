@@ -123,6 +123,27 @@ h1{font-size:clamp(26px,3.6vw,40px); font-weight:700; letter-spacing:-.025em; li
 .legenda .nd{display:flex; align-items:center; gap:6px; margin-top:8px; font-size:11px; color:var(--ink-3)}
 .legenda .nd i{width:11px; height:11px; border-radius:2px; background:var(--sem-dado); display:block}
 
+/* O botão mora dentro do mapa: na barra de controles ele aparecia junto com a
+   calçada, quebrava a linha das pílulas e empurrava o mapa 60px para baixo. */
+.voltar{position:absolute; top:12px; right:56px; z-index:500; cursor:pointer;
+  border:1px solid var(--linha); background:var(--painel); color:var(--ink-2);
+  padding:7px 12px; border-radius:99px; font:500 12.5px/1 Archivo,sans-serif;
+  box-shadow:var(--sombra)}
+.voltar:hover{color:var(--ink)}
+.voltar:focus-visible{outline:2px solid var(--serie-2); outline-offset:2px}
+/* Rótulo do distrito por cima da calçada: sem ele o usuário perde a referência
+   de onde está no instante em que o coroplético some. */
+.rotulo-distrito{font:600 11px/1 "IBM Plex Mono",monospace; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--ink); white-space:nowrap; pointer-events:none;
+  text-shadow:0 0 3px var(--surface), 0 0 6px var(--surface), 0 0 10px var(--surface)}
+/* Perto da calçada o mapa base volta a ser legível: é o nome da rua que diz ao
+   usuário que ele continua no mesmo lugar. */
+.envelope-mapa.perto .leaflet-tile-pane{filter:grayscale(1) contrast(.9) brightness(1.02) opacity(.85)}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .envelope-mapa.perto .leaflet-tile-pane{
+  filter:grayscale(1) invert(1) contrast(.85) brightness(.95) opacity(.7)} }
+:root[data-theme="dark"] .envelope-mapa.perto .leaflet-tile-pane{
+  filter:grayscale(1) invert(1) contrast(.85) brightness(.95) opacity(.7)}
+
 .dica{position:absolute; z-index:600; pointer-events:none; background:var(--ink); color:var(--surface);
   padding:7px 10px; border-radius:7px; font-size:12px; line-height:1.4; max-width:230px; opacity:0; transition:opacity .1s}
 .dica b{font-weight:600}
@@ -191,6 +212,7 @@ footer b{color:var(--ink-2)}
     <div class="cartoes" id="cartoes"></div>
     <div class="legenda" id="legenda"></div>
     <div class="dica" id="dica"></div>
+    <button class="voltar" id="voltar" hidden>← voltar à cidade</button>
     <div class="carregando" id="carregando">carregando os 96 distritos…</div>
   </div>
   <div class="painel-lado">
@@ -239,6 +261,6 @@ footer b{color:var(--ink-2)}
 </footer>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>
