@@ -1,0 +1,36 @@
+{
+ "faces": 287699,
+ "setores": 26605,
+ "moradores": 11375786,
+ "criancas_0a4": 588582,
+ "idosos_60": 2006311,
+ "taxas": {
+  "pavimentada": 94.9,
+  "bueiro": 51.5,
+  "iluminacao": 93.7,
+  "onibus": 13.3,
+  "ciclovia": 4.0,
+  "calcada": 81.5,
+  "obstaculo": 72.7,
+  "rampa": 18.6
+ },
+ "rotulos": {
+  "pavimentada": "via pavimentada",
+  "bueiro": "bueiro ou boca de lobo",
+  "iluminacao": "iluminação pública",
+  "onibus": "ponto de ônibus",
+  "ciclovia": "via sinalizada para bicicleta",
+  "calcada": "calçada",
+  "obstaculo": "obstáculo na calçada",
+  "rampa": "rampa para cadeirante"
+ },
+ "arborizacao": {
+  "sem árvores": 44.7,
+  "1 a 2": 20.0,
+  "3 a 4": 10.5,
+  "5 ou mais": 24.2,
+  "saltado": 0.7
+ },
+ "rampa_faces": 15.2,
+ "vao": 79.8
+}
