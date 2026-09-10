@@ -5,7 +5,7 @@
  * `undefined` no cartão. Suba este número a cada publicação que mexa em
  * qualquer um dos dois. O `index.html` carrega `app.js?v=` com o mesmo valor.
  */
-const V = "15";
+const V = "16";
 
 /* Mapa das calçadas de São Paulo.
  *
@@ -128,9 +128,15 @@ const METRICAS = {
  * a cidade tem de errado, medido calçada a calçada; o segundo são as duas notas
  * compostas, que combinam coisas e por isso pedem leitura à parte. */
 const GRUPOS_METRICA = [
-  {rot: "Barreiras", metricas: ["barreira", "estreita", "comprimento", "declive",
-                                "obstaculo", "pec", "sem_calcada", "sem_rampa"]},
-  {rot: "Filtros customizados", metricas: ["score", "potencial"]},
+  {rot: "Analisar calçadas de São Paulo por",
+   dica: "Escolhe o indicador que pinta os distritos, ordena a tabela e pinta cada "
+       + "calçada quando você se aproxima",
+   metricas: ["barreira", "estreita", "comprimento", "declive",
+              "obstaculo", "pec", "sem_calcada", "sem_rampa"]},
+  {rot: "Filtros customizados",
+   dica: "As duas notas compostas: combinam vários fatores num número só, e por isso "
+       + "pedem leitura à parte",
+   metricas: ["score", "potencial"]},
 ];
 
 const FILTROS = {
@@ -866,15 +872,15 @@ function marcarLinha(nomes) {
 /* ---------------- controles e legenda ---------------- */
 function desenharControles() {
   $("#controles").innerHTML = `
-    <div class="grupo largo"><span title="Escolhe o indicador que pinta os distritos, ordena a tabela e pinta cada calçada quando você se aproxima">Analisar São Paulo Por</span>
-      <div id="pills-metrica" class="grupos-metrica">
+    <div id="pills-metrica" class="grupos-metrica">
       ${GRUPOS_METRICA.map(g =>
-        `<div class="sub"><span class="rot-grupo">${g.rot}</span><div class="pills">` +
+        `<div class="sub"><span class="rot-grupo" title="${g.dica}">${g.rot}</span>` +
+        `<div class="pills">` +
         g.metricas.filter(k => METRICAS[k]).map(k =>
           `<button data-m="${k}" aria-pressed="${k === metrica}" title="${METRICAS[k].ajuda}"
             >${METRICAS[k].rot}</button>`).join("") +
         `</div></div>`).join("")}
-    </div></div>
+    </div>
     <div class="grupo"><span title="Cada filtro é um critério da NBR 9050 e do Decreto 59.671/2020. Ligados por E, e só subtraem: a calçada que não passa some do mapa. Quem escolhe a cor é o indicador ali de cima">mostrar só as calçadas que</span><div class="pills" id="pills-filtro">
       ${Object.entries(FILTROS).map(([k, f]) =>
         `<button data-f="${k}" aria-pressed="false" disabled data-ajuda="${f.ajuda}"
