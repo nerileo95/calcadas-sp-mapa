@@ -62,8 +62,14 @@ CRS_METRICO = 31983          # SIRGAS 2000 / UTM 23S, para contar em metros
 # calçada larga e arborizada ganha nos dois; uma estreita com árvore no meio
 # perde na largura mais do que ganha na sombra.
 PESO = {"sombra": .30, "luz": .20, "largura": .20, "plano": .15, "reclamacao": .15}
-ARVORES_REF_100M = 20.0      # motor.py: arv_ref
-POSTES_REF_100M = 12.0       # motor.py: post_ref
+# Densidade em que a parcela satura, medida NESTA unidade. Os valores vinham do
+# `motor.py`, onde a unidade é o quarteirão do OSM e a árvore conta num buffer de
+# 12 m do eixo da via. Aqui a unidade é o trecho de calçada (mediana de 24 m) e
+# só conta a árvore DENTRO do polígono: 20 e 12 eram o p99 desta distribuição, de
+# modo que só o 1% mais arborizado saturava e a nota ficava espremida no primeiro
+# terço da régua. Estes são o p90 medido sobre as 491.383 calçadas.
+ARVORES_REF_100M = 7.0       # p90 medido: 6,8 por 100 m
+POSTES_REF_100M = 5.0        # p90 medido: 4,7 por 100 m
 RECLAMACOES_REF = 3.0        # daqui para cima a penalidade é cheia
 RAIO_RECLAMACAO_M = 20       # a reclamação é um endereço: cai na via, não na calçada
 

@@ -5,7 +5,7 @@
  * `undefined` no cartão. Suba este número a cada publicação que mexa em
  * qualquer um dos dois. O `index.html` carrega `app.js?v=` com o mesmo valor.
  */
-const V = "18";
+const V = "19";
 
 /* Mapa das calçadas de São Paulo.
  *
@@ -55,13 +55,14 @@ const METRICAS = {
                     + "número absoluto o ranking vira quase o de população infantil e a "
                     + "qualidade da calçada mal reordena. Só existe por distrito, porque a "
                     + "criança mora no setor censitário, não no trecho de calçada."},
-  score:      {rot: "score de acessibilidade", campo: "cal_score", max: 35, un: "",
+  score:      {rot: "score de acessibilidade", campo: "cal_score", max: 42, un: "",
                base: "nota média das calçadas do distrito, de 0 a 100", alto: "melhor",
                ajuda: "Média das notas de passeio das calçadas do distrito. A nota soma "
                     + "sombra, iluminação, largura livre e terreno plano, e desconta "
-                    + "reclamação. Vai de 0 a 100, mas a cidade real fica entre 0 e 55.",
-               calcada: {valor: p => p.score, max: 55, alto: "melhor",
-                         rot: "score de acessibilidade", pontas: ["0", "55 ou mais"]}},
+                    + "reclamação. Vai de 0 a 100; na cidade real o topo fica perto de 65, "
+                    + "e é aí que a escala de cor satura.",
+               calcada: {valor: p => p.score, max: 65, alto: "melhor",
+                         rot: "score de acessibilidade", pontas: ["0", "65 ou mais"]}},
   barreira:   {rot: "barreira", campo: "cal_barreira", max: 90, un: "%",
                base: "das calçadas do distrito", alto: "pior",
                ajuda: "Calçadas estreitas demais OU íngremes demais para passar: faixa "
@@ -542,7 +543,7 @@ const ESCALA_PADRAO = {valor: p => p.livre_min, max: 3, alto: "melhor",
                        rot: "faixa livre", pontas: ["0 m", "3 m ou mais"]};
 /* A nota vai de 0 a 100 por construção, mas a cidade real ocupa a ponta de
  * baixo: mediana 15, p99 igual a 53, e o melhor distrito tem média 32. Por isso
- * o teto do desenho é 55 e não 100 — ver METRICAS.score.calcada. */
+ * o teto do desenho é 65 e não 100: ver METRICAS.score.calcada. */
 
 /* Quem pinta a calçada é sempre a métrica escolhida no mapa — a mesma que pinta
  * o distrito, na sua versão por calçada. O filtro só subtrai; ter os dois
