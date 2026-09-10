@@ -1,3 +1,12 @@
+/* Versão do conjunto app.js + dados/. O GitHub Pages serve com
+ * `cache-control: max-age=600`, e os arquivos de `dados/` eram buscados SEM
+ * parâmetro nenhum: mudar o dado e não mudar isto fazia o navegador continuar
+ * lendo o JSON antigo — e um campo novo, como `dentro_norma`, chegava
+ * `undefined` no cartão. Suba este número a cada publicação que mexa em
+ * qualquer um dos dois. O `index.html` carrega `app.js?v=` com o mesmo valor.
+ */
+const V = "15";
+
 /* Mapa das calçadas de São Paulo.
  *
  * Duas resoluções, e a segunda é o assunto:
@@ -647,7 +656,7 @@ async function entrarNoNivel(alvos) {
       : `carregando as calçadas de ${faltando.length} distritos…`;
     $("#carregando").style.display = "grid";
     const vindos = await Promise.all(faltando.map(p =>
-      fetch(`dados/calcadas/${p.id}.geojson`).then(r => r.json())));
+      fetch(`dados/calcadas/${p.id}.geojson?v=${V}`).then(r => r.json())));
     faltando.forEach((p, i) => emCache.set(p.id, vindos[i]));
     // Um distrito chega a alguns MB de JSON parseado. Guardar os 96 é o caminho
     // mais curto para a aba estourar — mas nunca despejar quem está na tela.
@@ -740,7 +749,7 @@ let montandoPontos = false;
 
 async function carregarPontos(id) {
   if (!pontosEmCache.has(id)) {
-    pontosEmCache.set(id, await fetch(`dados/pontos/${id}.json`)
+    pontosEmCache.set(id, await fetch(`dados/pontos/${id}.json?v=${V}`)
       .then(r => r.ok ? r.json() : {}).catch(() => ({})));
     for (const k of [...pontosEmCache.keys()]) {
       if (pontosEmCache.size <= MAX_EM_CACHE) break;
@@ -1027,8 +1036,8 @@ function autoteste() {
   mapa.setView([-23.65, -46.63], 10);
 
   [municipio, distritos] = await Promise.all([
-    fetch("dados/municipio.json").then(r => r.json()),
-    fetch("dados/distritos.geojson").then(r => r.json())]);
+    fetch(`dados/municipio.json?v=${V}`).then(r => r.json()),
+    fetch(`dados/distritos.geojson?v=${V}`).then(r => r.json())]);
 
   pintarFaixa();
   desenharControles();
