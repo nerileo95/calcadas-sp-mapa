@@ -64,7 +64,14 @@ h1,h2,h3{margin:0; text-wrap:balance}
 /* ---------- cabeçalho: a pergunta e o vão ---------- */
 .selo{font:600 10.5px/1 "IBM Plex Mono",monospace; letter-spacing:.15em; text-transform:uppercase; color:var(--ink-3)}
 h1{font-size:clamp(26px,3.6vw,40px); font-weight:700; letter-spacing:-.025em; line-height:1.1; margin:12px 0 10px; max-width:22ch}
-.linha-fina{color:var(--ink-2); max-width:62ch; margin:0 0 22px; font-size:15.5px}
+.linha-fina{color:var(--ink-2); max-width:62ch; margin:0 0 18px; font-size:15.5px}
+/* o objetivo é o fio que liga o diagnóstico aos dois indicadores compostos;
+   o filete à esquerda separa sem pedir uma caixa inteira */
+.objetivo{display:flex; flex-direction:column; gap:6px; max-width:78ch; margin:0 0 22px;
+  padding-left:15px; border-left:2px solid var(--linha)}
+.objetivo > span{font:600 9.5px/1 "IBM Plex Mono",monospace; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--ink-3)}
+.objetivo p{margin:0; color:var(--ink-2); font-size:14px; line-height:1.55}
 
 .vao{display:flex; align-items:stretch; gap:0; border:1px solid var(--linha); border-radius:12px;
   background:var(--painel); overflow:hidden; box-shadow:var(--sombra); margin-bottom:26px; flex-wrap:wrap}
@@ -217,6 +224,15 @@ footer b{color:var(--ink-2)}
   <p class="linha-fina">A Prefeitura mede cada trecho de calçada da cidade: largura, declividade,
   árvore e poste plantados dentro dela. São 491.383 trechos, e <b>mais da metade é estreita demais
   ou íngreme demais</b> para um carrinho de bebê, uma cadeira de rodas ou um andador.</p>
+  <div class="objetivo">
+    <span>Objetivo</span>
+    <p>Medir a calçada da cidade pela pergunta de quem empurra um carrinho de bebê: dá para passar?
+    A resposta, trecho a trecho, é o que sustenta um aplicativo de rotas para pais e mães, que
+    precisa saber onde a calçada é larga o bastante, plana o bastante e livre de obstáculo antes de
+    sugerir um caminho. Por isso o painel não para no diagnóstico: o <b>score de acessibilidade</b>
+    dá uma nota a cada trecho, e o <b>potencial de adoção</b> mostra onde há, ao mesmo tempo,
+    criança pequena e calçada boa o bastante para esse aplicativo entregar uma rota que funcione.</p>
+  </div>
   <dl class="vao" id="vao"></dl>
 </header>
 
@@ -289,6 +305,6 @@ footer b{color:var(--ink-2)}
 </footer>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="app.js?v=17"></script>
+<script src="app.js?v=18"></script>
 </body>
 </html>

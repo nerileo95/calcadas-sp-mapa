@@ -5,7 +5,7 @@
  * `undefined` no cartão. Suba este número a cada publicação que mexa em
  * qualquer um dos dois. O `index.html` carrega `app.js?v=` com o mesmo valor.
  */
-const V = "17";
+const V = "18";
 
 /* Mapa das calçadas de São Paulo.
  *
