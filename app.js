@@ -5,7 +5,7 @@
  * `undefined` no cartão. Suba este número a cada publicação que mexa em
  * qualquer um dos dois. O `index.html` carrega `app.js?v=` com o mesmo valor.
  */
-const V = "16";
+const V = "17";
 
 /* Mapa das calçadas de São Paulo.
  *
@@ -51,10 +51,10 @@ const METRICAS = {
                ajuda: "Densidade de crianças de 0 a 4 anos multiplicada pela fração de "
                     + "calçadas que passam na norma. Responde onde um aplicativo de "
                     + "caminhada com carrinho teria gente para atender E calçada boa o "
-                    + "bastante para entregar uma rota. Densidade e não contagem: por "
-                    + "contagem o ranking vira o de população infantil e a calçada mal "
-                    + "reordena. Só existe por distrito — a criança mora no setor "
-                    + "censitário, não no trecho de calçada."},
+                    + "bastante para entregar uma rota. É densidade, e não contagem: por "
+                    + "número absoluto o ranking vira quase o de população infantil e a "
+                    + "qualidade da calçada mal reordena. Só existe por distrito, porque a "
+                    + "criança mora no setor censitário, não no trecho de calçada."},
   score:      {rot: "score de acessibilidade", campo: "cal_score", max: 35, un: "",
                base: "nota média das calçadas do distrito, de 0 a 100", alto: "melhor",
                ajuda: "Média das notas de passeio das calçadas do distrito. A nota soma "
@@ -80,11 +80,11 @@ const METRICAS = {
                          pontas: ["1,20 m ou mais", "abaixo de 1,20 m"]}},
   comprimento:{rot: "comprimento", campo: "cal_comprimento", min: 45, max: 75, un: " m",
                base: "comprimento médio dos trechos de calçada do distrito", alto: "melhor",
-               ajuda: "Comprimento médio dos trechos de calçada. É ESTIMATIVA: o cadastro "
-                    + "traz a área e a largura média de cada trecho, mas não o comprimento — "
-                    + "este é a área dividida pela largura média, a mesma conta que o score "
-                    + "já usa para densidade de árvore por 100 m. Trecho curto costuma ser "
-                    + "esquina e testada estreita; trecho longo, quadra inteira de um lado só.",
+               ajuda: "Comprimento médio dos trechos de calçada. É estimativa, não medida: "
+                    + "o cadastro traz a área e a largura média de cada trecho, mas não o "
+                    + "comprimento; o valor é a área dividida pela largura média. Trecho "
+                    + "curto costuma ser esquina e testada estreita; trecho longo, quadra "
+                    + "inteira de um lado só.",
                calcada: {valor: p => p.comprimento, max: 120, alto: "melhor",
                          rot: "comprimento estimado", pontas: ["curto", "120 m ou mais"]}},
   // 45 m é o menor trecho médio entre os 96 distritos; 75 m no topo espalha 86
@@ -112,7 +112,7 @@ const METRICAS = {
   sem_calcada: {rot: "sem calçada", num: "V05422", den: "V05400", max: 60, un: "%",
                 base: "das faces de quadra do distrito", alto: "pior",
                 ajuda: "Faces de quadra onde o recenseador não encontrou calçada nenhuma. "
-                     + "Censo 2022 — aqui a unidade é a face de quadra, não a calçada "
+                     + "Censo 2022: aqui a unidade é a face de quadra, e não a calçada "
                      + "cadastrada pela Prefeitura."},
   sem_rampa:  {rot: "sem rampa", num: "V05428", den: "V05421", max: 100, un: "%",
                base: "das faces que têm calçada", alto: "pior",
@@ -284,7 +284,7 @@ function quemMora(props, nomes = null) {
     : nomes.length === 1 ? `em ${nomes[0]}`
     : `nos ${nomes.length} distritos desta vista`;
   return `<div class="sep"></div>
-    <div class="pessoas"><b>${num(criancas)} crianças de 0 a 4 anos</b> moram ${onde} —
+    <div class="pessoas"><b>${num(criancas)} crianças de 0 a 4 anos</b> moram ${onde},
     ${pct(doTotal)} das da cidade. E ${num(idosos)} pessoas com 60 anos ou mais.</div>`;
 }
 
@@ -739,7 +739,7 @@ async function irParaDistrito(props, enquadrar = true, ponto = null) {
 const PONTOS = {
   arvores:    {rot: "árvores", cor: "--pt-arvore", r: 1.7,
                ajuda: "As 652.976 árvores do cadastro municipal. Dentro da calçada elas são "
-                    + "obstáculo; ao longo dela, sombra — e o score conta as duas coisas."},
+                    + "obstáculo; ao longo dela, sombra. O score conta as duas coisas."},
   postes:     {rot: "postes", cor: "--pt-poste", r: 1.4,
                ajuda: "Os 662.945 pontos de iluminação pública. Ocupam a faixa de serviço e "
                     + "somam luz ao score."},
@@ -947,7 +947,7 @@ function desenharLegenda() {
     const emprestada = !METRICAS[metrica].calcada;
     $("#legenda").innerHTML = `
       <div class="titulo">${e.rot} da calçada${e.binaria ? "" :
-        ` — mais forte, ${e.alto === "melhor" ? "melhor" : "pior"}`}</div>
+        `: mais forte, ${e.alto === "melhor" ? "melhor" : "pior"}`}</div>
       <div class="escala">${passos.map(s => `<i style="background:${cor(s)}"></i>`).join("")}</div>
       <div class="escala-rot"><span>${a}</span><span>${b}</span></div>
       <div class="nd"><i></i>${emprestada
@@ -955,7 +955,7 @@ function desenharLegenda() {
     return;
   }
   $("#legenda").innerHTML = `
-    <div class="titulo">${m.rot}${m.dica ? ` — ${m.dica}` : ""}</div>
+    <div class="titulo">${m.rot}${m.dica ? `: ${m.dica}` : ""}</div>
     <div class="escala">${RAMPA.map(s => `<i style="background:${cor(s)}"></i>`).join("")}</div>
     <div class="escala-rot"><span>${m.min || 0}${m.un}</span><span>mais forte, ${
       m.alto === "melhor" ? "melhor" : "pior"}</span><span>${m.max}${m.un}</span></div>
@@ -975,7 +975,7 @@ function pintarFaixa() {
     <div class="lado"><dt>com ao menos uma barreira</dt>
       <dd>${pct(c.barreira)}<small>estreita demais ou íngreme demais para passar</small></dd></div>
     <div class="lado"><dt>sem rampa</dt>
-      <dd>${pct(municipio.taxas.sem_rampa)}<small>das faces de quadra com calçada, no Censo 2022 —
+      <dd>${pct(municipio.taxas.sem_rampa)}<small>das faces de quadra com calçada, no Censo 2022:
       o cadastro de calçada não registra rebaixamento de guia</small></dd></div>
     <div class="lado"><dt>abaixo de 1,20 m livres</dt>
       <dd>${pct(c.estreita)}<small>das ${num(c.calcadas)} calçadas cadastradas no município</small></dd></div>`;

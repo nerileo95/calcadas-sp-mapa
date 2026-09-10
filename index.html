@@ -194,7 +194,14 @@ h1{font-size:clamp(26px,3.6vw,40px); font-weight:700; letter-spacing:-.025em; li
 .rodape-tabela{font-size:11px; color:var(--ink-3); margin-top:9px; padding-top:9px; border-top:1px solid var(--linha-2)}
 
 footer{margin-top:36px; padding-top:20px; border-top:1px solid var(--linha); color:var(--ink-3); font-size:12.5px}
-footer p{max-width:80ch; margin:0 0 9px}
+footer p{margin:0 0 11px}
+/* Em duas colunas: numa só, o rodapé virava uma tira de 80 caracteres com meia
+   largura da folha vazia ao lado. Os créditos ficam fora do bloco, atravessando
+   as duas. */
+.fontes{columns:2; column-gap:46px}
+.fontes p{break-inside:avoid}
+@media (max-width:800px){ .fontes{columns:1} }
+.creditos{margin-top:14px; padding-top:12px; border-top:1px solid var(--linha-2)}
 footer a{color:var(--ink-2)}
 footer b{color:var(--ink-2)}
 .carregando{position:absolute; inset:0; display:grid; place-items:center; z-index:700;
@@ -231,55 +238,57 @@ footer b{color:var(--ink-2)}
     <input id="busca" type="search" placeholder="buscar distrito em toda a cidade"
            aria-label="buscar distrito pelo nome, em toda a cidade">
     <div class="tabela" id="tabela"></div>
-    <p class="rodape-tabela">Cada taxa é sobre as calçadas cadastradas no distrito — de 1.121 na
+    <p class="rodape-tabela">Cada taxa é sobre as calçadas cadastradas no distrito, de 1.121 na
     Bela Vista a 15.473 no Grajaú. Distrito grande e distrito pequeno pesam diferente na conta da cidade.</p>
   </div>
 </div>
 
 <footer>
-  <p><b>Fonte.</b> Prefeitura de São Paulo — GeoSampa, camada <code>geoportal:calcada</code>:
+  <div class="fontes">
+  <p><b>Fonte.</b> Prefeitura de São Paulo, GeoSampa, camada <code>geoportal:calcada</code>:
   491.383 trechos de calçada cadastrados, com área, largura mínima e média e declividade de cada um.
-  IBGE, Censo Demográfico 2022 — Agregados por Setores Censitários, <i>Características urbanísticas
+  IBGE, Censo Demográfico 2022, Agregados por Setores Censitários, <i>Características urbanísticas
   do entorno dos domicílios</i>, por face de quadra (287.699 faces em 26.605 setores), usado nas
   duas últimas métricas e no recorte de favela e comunidade urbana.</p>
   <p><b>Os critérios.</b> <i>Estreita</i> é faixa livre abaixo de 1,20 m, o mínimo do Decreto
   Municipal 59.671/2020 e da NBR 9050. <i>Faixa livre</i> é a largura mínima do trecho menos 0,70 m
-  de faixa de serviço onde há árvore ou poste plantado dentro da calçada — desconto binário, o mesmo
-  para uma árvore e para quarenta, porque o cadastro não diz onde o obstáculo está. É por isso que a
-  faixa livre chega a ficar negativa. <i>Íngreme</i> é declividade média acima de 8,33% (1:12).
-  <i>Barreira</i> é uma coisa ou a outra.</p>
-  <p><b>O score de acessibilidade.</b> Uma nota de 0 a 100 por trecho de calçada, com a estrutura de
-  pesos do motor de rotas do trabalho integrador: sombra 0,30, iluminação 0,20, largura livre 0,20,
-  declividade 0,15, e reclamação descontando 0,15. A densidade de árvore e de poste é por 100 m de
-  calçada, com o comprimento estimado pela área sobre a largura média — o cadastro não traz
-  comprimento. A mesma árvore entra duas vezes e com sinais opostos, de propósito: ela desconta
-  0,70 m da faixa livre e soma sombra. Uma calçada larga e arborizada ganha nas duas pontas; uma
-  estreita com árvore no meio perde mais na largura do que ganha na sombra. A nota da rua é a média
-  dos trechos com o mesmo nome de logradouro.</p>
+  de faixa de serviço onde há árvore ou poste plantado dentro da calçada. O desconto é binário, o
+  mesmo para uma árvore e para quarenta, porque o cadastro não registra a posição do obstáculo; é
+  por isso que a faixa livre chega a ficar negativa. <i>Íngreme</i> é declividade média acima de
+  8,33% (1:12). <i>Barreira</i> é uma coisa ou a outra.</p>
+  <p><b>O score de acessibilidade.</b> Uma nota de 0 a 100 por trecho de calçada: sombra 0,30,
+  iluminação 0,20, largura livre 0,20, declividade 0,15, e reclamação descontando 0,15. A densidade
+  de árvore e de poste é por 100 m de calçada, com o comprimento estimado pela área sobre a largura
+  média, já que o cadastro não traz comprimento. A mesma árvore entra duas vezes e com sinais
+  opostos: desconta 0,70 m da faixa livre e soma sombra. Uma calçada larga e arborizada ganha nas
+  duas pontas; uma estreita com árvore no meio perde mais na largura do que ganha na sombra. A nota
+  da rua é a média dos trechos com o mesmo nome de logradouro.</p>
+  <p><b>Comprimento.</b> Estimativa, não medida: o cadastro traz a área e a largura média de cada
+  trecho, mas não o comprimento. O valor é a área dividida pela largura média. Trecho curto costuma
+  ser esquina e testada estreita; trecho longo, quadra inteira de um lado só.</p>
   <p><b>Potencial de adoção.</b> Densidade de crianças de 0 a 4 anos multiplicada pela fração de
-  calçadas do distrito que passam na norma — onde um aplicativo de caminhada com carrinho teria
-  gente para atender <i>e</i> calçada boa o bastante para entregar uma rota. É densidade e não
-  contagem porque a contagem foi testada primeiro e não serve: por número absoluto de crianças o
-  ranking vira quase o ranking de população infantil, e a qualidade da calçada mal reordena o topo.
-  <b>O que este indicador não vê:</b> tamanho de mercado. A República lidera com 879 crianças por
-  km² em calçada boa, mas tem só 2.043 crianças no total, num distrito de 2,3 km². Jardim Helena é
-  o caso oposto e mais interessante — 1.000 por km², 61,8% de calçada dentro da norma e 8.191
-  crianças. Por isso o mapa e a tabela mostram o número absoluto e a área junto do indicador,
-  quando o mouse passa por cima.</p>
+  calçadas do distrito que passam na norma: onde um aplicativo de caminhada com carrinho teria
+  gente para atender <i>e</i> calçada boa o bastante para entregar uma rota. É densidade, e não
+  contagem, porque por número absoluto de crianças o ranking vira quase o de população infantil e a
+  qualidade da calçada mal reordena o topo. <b>O que este indicador não vê:</b> tamanho de mercado.
+  A República lidera com 879 crianças por km² em calçada boa, mas tem só 2.043 crianças no total,
+  num distrito de 2,3 km². Jardim Helena é o caso oposto: 1.000 por km², 61,8% de calçada dentro da
+  norma e 8.191 crianças. O número absoluto e a área aparecem junto do indicador, no mapa e na
+  tabela.</p>
   <p><b>Incidentes reportados.</b> Capinação de guia e sarjeta, risco de queda de árvore e árvore em
-  urgência — 7.006 chamados georreferenciados do GeoSampa, contados a até 20 m da calçada porque o
-  chamado é um endereço e cai na via. <i>Não</i> é o SP156: os 49.215 pedidos de calçada de 2020 a
-  2025 que aparecem na apresentação são outra base, ainda não integrada. Tapa-buraco ficou de fora
-  por ser da via, não da calçada.</p>
-  <p><b>O que o dado não diz.</b> O cadastro descreve a <i>geometria</i> da calçada, não o estado
-  dela: não há buraco de calçada, piso solto nem rampa de esquina. Rampa para cadeirante só existe no
-  Censo, por face de quadra — por isso ela aparece como métrica do distrito e nunca como filtro de
+  urgência: 7.006 chamados georreferenciados do GeoSampa, contados a até 20 m da calçada, porque o
+  chamado é um endereço e cai na via. Não inclui os chamados de tapa-buraco, que são da via e não da
   calçada.</p>
-  <p><a href="https://github.com/nerileo95/calcadas-sp-mapa">Código, dados e script de preparação no GitHub</a>
-  · Insper, Prática Avançada em Data Science and Visualization</p>
+  <p><b>O que o dado não diz.</b> O cadastro descreve a <i>geometria</i> da calçada, não o estado
+  dela: não há buraco de calçada, piso solto nem rampa de esquina. Rampa para cadeirante só existe
+  no Censo, por face de quadra, e por isso é métrica de distrito e não filtro de calçada.</p>
+  </div>
+  <p class="creditos"><a href="https://github.com/nerileo95/calcadas-sp-mapa">Código, dados e
+  script de preparação no GitHub</a> · Insper, Prática Avançada em Data Science and
+  Visualization</p>
 </footer>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="app.js?v=16"></script>
+<script src="app.js?v=17"></script>
 </body>
 </html>
