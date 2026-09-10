@@ -64,18 +64,7 @@ h1,h2,h3{margin:0; text-wrap:balance}
 /* ---------- cabeçalho: a pergunta e o vão ---------- */
 .selo{font:600 10.5px/1 "IBM Plex Mono",monospace; letter-spacing:.15em; text-transform:uppercase; color:var(--ink-3)}
 h1{font-size:clamp(26px,3.6vw,40px); font-weight:700; letter-spacing:-.025em; line-height:1.1; margin:12px 0 10px; max-width:22ch}
-.linha-fina{color:var(--ink-2); max-width:62ch; margin:0 0 16px; font-size:15.5px}
-/* A metodologia curta — o rodapé tem a longa, e quem quiser o detalhe vai lá.
-   Em duas colunas de propósito: numa coluna só ela empurrava o mapa 240 px para
-   baixo e deixava metade da largura da folha vazia ao lado. */
-.metodo{margin:0 0 22px; columns:2; column-gap:40px; max-width:900px}
-@media (max-width:760px){ .metodo{columns:1} }
-/* coluna que FLUI, e não grade: com `grid` os quatro parágrafos caíam em ordem
-   de linha e sobrava um buraco de meia tela embaixo do segundo */
-.metodo p{margin:0 0 11px; font-size:13.5px; line-height:1.55; color:var(--ink-2);
-  break-inside:avoid}
-.metodo b{color:var(--ink); font-weight:600}
-.metodo .como-ler{color:var(--ink-3)}
+.linha-fina{color:var(--ink-2); max-width:62ch; margin:0 0 22px; font-size:15.5px}
 
 .vao{display:flex; align-items:stretch; gap:0; border:1px solid var(--linha); border-radius:12px;
   background:var(--painel); overflow:hidden; box-shadow:var(--sombra); margin-bottom:26px; flex-wrap:wrap}
@@ -212,25 +201,6 @@ footer b{color:var(--ink-2)}
   <p class="linha-fina">A Prefeitura mede cada trecho de calçada da cidade: largura, declividade,
   árvore e poste plantados dentro dela. São 491.383 trechos, e <b>mais da metade é estreita demais
   ou íngreme demais</b> para um carrinho de bebê, uma cadeira de rodas ou um andador.</p>
-  <div class="metodo">
-    <p><b>O que está medido.</b> O cadastro <code>geoportal:calcada</code> do GeoSampa traz, de cada
-    trecho, a área, a largura mínima e média e a declividade média. A <i>faixa livre</i> — o que
-    sobra para andar — é a largura mínima menos 0,70 m de faixa de serviço onde há árvore ou poste
-    plantado dentro da calçada. O desconto é binário, o mesmo para uma árvore e para quarenta,
-    porque o cadastro não diz onde o obstáculo está; é por isso que a faixa livre chega a ficar
-    negativa.</p>
-    <p><b>Os critérios são de norma, não de opinião.</b> <i>Estreita</i> é faixa livre abaixo de
-    1,20 m, o mínimo do Decreto Municipal 59.671/2020 e da NBR 9050. <i>Íngreme</i> é declividade
-    média acima de 8,33%, a rampa de 1:12 da mesma norma. <i>Barreira</i> é uma coisa ou a outra.
-    O <b>score de acessibilidade</b> é uma nota de 0 a 100 por trecho, que soma sombra (0,30),
-    iluminação (0,20), faixa livre (0,20) e terreno plano (0,15), e desconta reclamações (0,15).</p>
-    <p><b>De onde vem o resto.</b> As duas últimas métricas e o recorte de favela vêm do Censo
-    Demográfico 2022 do IBGE, por face de quadra. Árvores, postes e chamados abertos são camadas
-    próprias do GeoSampa, e entram como filtro avançado.</p>
-    <p class="como-ler"><b>Como usar.</b> Escolha o indicador que pinta o mapa; os filtros só
-    subtraem — o que não passa no critério some. Aproxime até o zoom 14 e as calçadas de verdade
-    aparecem, uma a uma. A metodologia completa, com o que cada número não vê, está no rodapé.</p>
-  </div>
   <dl class="vao" id="vao"></dl>
 </header>
 
