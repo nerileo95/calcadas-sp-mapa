@@ -81,7 +81,14 @@ h1{font-size:clamp(26px,3.6vw,40px); font-weight:700; letter-spacing:-.025em; li
 .controles{display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; margin-bottom:12px}
 .grupo{display:flex; flex-direction:column; gap:6px}
 .grupo > span{font:600 9.5px/1 "IBM Plex Mono",monospace; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)}
-.pills{display:flex; gap:5px; flex-wrap:wrap}
+.pills{display:flex; gap:5px; flex-wrap:wrap; align-items:center}
+/* Cada grupo na sua linha. Numa fila só, "filtros customizados" caía no fim da
+   primeira linha e as suas duas pílulas quebravam para a segunda — lido assim,
+   o rótulo parecia pertencer ao grupo de cima. */
+.grupos-metrica{display:flex; flex-direction:column; gap:7px}
+.grupos-metrica .sub{display:flex; align-items:baseline; gap:9px; flex-wrap:wrap}
+.rot-grupo{font:600 9.5px/1 "IBM Plex Mono",monospace; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--ink-3); white-space:nowrap; min-width:82px}
 .pills button{border:1px solid var(--linha); background:var(--painel); color:var(--ink-2); cursor:pointer;
   padding:7px 12px; border-radius:99px; font:500 12.5px/1 Archivo,sans-serif}
 .pills button[aria-pressed="true"]{background:var(--ink); color:var(--surface); border-color:var(--ink)}

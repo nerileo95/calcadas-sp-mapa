@@ -151,6 +151,10 @@ def pontuar(c):
     # Densidade por 100 m. Não há comprimento no cadastro: área sobre largura
     # média é a melhor aproximação com o que existe.
     comp = (c.qt_area_calcada / c.qt_largura_media_trecho.replace(0, np.nan)).clip(lower=5)
+    # guardado: vira indicador de mapa. É ESTIMATIVA, e o rótulo diz isso — o
+    # cadastro não traz comprimento, e área sobre largura média é o que dá para
+    # fazer com o que existe.
+    c["comprimento"] = comp.round(1)
     por100 = lambda n: n / (comp / 100)
     q = pd.DataFrame(index=c.index)
     q["sombra"] = (por100(c.n_arvores) / ARVORES_REF_100M).clip(0, 1)
@@ -281,7 +285,8 @@ def calcadas(setores):
     (SAIDA / "calcadas").mkdir(exist_ok=True)
     # `larg_min` sai: é `livre_min` mais a faixa de serviço quando há obstáculo,
     # e o navegador refaz a conta de graça. `id` sai porque ninguém o lê.
-    campos = ["rua", "livre_min", "declive", "obst", "pec", "em_favela", "score", "geometry"]
+    campos = ["rua", "livre_min", "declive", "obst", "pec", "em_favela", "score",
+              "comprimento", "geometry"]
     for nome, grupo in c.groupby("distrito"):
         gs = grupo[campos].copy()
         gs["geometry"] = gs.geometry.simplify(0.00002)
@@ -297,6 +302,7 @@ def calcadas(setores):
         cal_barreira=("barreira", taxa),
         cal_score=("score", lambda x: round(x.mean(), 1)),
         cal_declive=("declive", lambda x: round(x.mean(), 2)),
+        cal_comprimento=("comprimento", lambda x: round(x.mean(), 1)),
     )
     cidade = {
         "calcadas": int(len(c)),
@@ -306,6 +312,9 @@ def calcadas(setores):
         "pec": taxa(c.pec),
         "barreira": taxa(c.barreira),
         "passa_tudo": taxa(~c.barreira & (c.obst == 0)),
+        # o complemento exato de `barreira`: passa na largura E na inclinação
+        "dentro_norma": taxa(~c.barreira),
+        "comprimento": round(float(c.comprimento.mean()), 1),
         "livre_min_mediana": round(float(c.livre_min.median()), 2),
         "score": round(float(c.score.mean()), 1),
         "declive": round(float(c.declive.mean()), 2),

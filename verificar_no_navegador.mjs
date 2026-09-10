@@ -136,7 +136,7 @@ r = await js(`
   const cores = () => camadaCalcadas.getLayers().slice(0, 400).map(l => l.options.fillColor);
   const distintas = () => new Set(cores()).size;
   const vistos = {};
-  for (const k of ["score", "barreira", "estreita", "declive", "obstaculo", "sem_rampa"]) {
+  for (const k of ["score", "barreira", "estreita", "comprimento", "declive", "obstaculo", "sem_rampa"]) {
     document.querySelector('#pills-metrica button[data-m="' + k + '"]').click();
     await new Promise(r => setTimeout(r, 1800));
     vistos[k] = {titulo: titulo(), tons: distintas(), amostra: cores()[0]};

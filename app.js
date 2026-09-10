@@ -69,6 +69,17 @@ const METRICAS = {
                calcada: {valor: p => p.livre_min < FAIXA_LIVRE_MIN ? 1 : 0,
                          max: 1, binaria: true, alto: "pior", rot: "faixa livre",
                          pontas: ["1,20 m ou mais", "abaixo de 1,20 m"]}},
+  comprimento:{rot: "comprimento", campo: "cal_comprimento", min: 45, max: 75, un: " m",
+               base: "comprimento médio dos trechos de calçada do distrito", alto: "melhor",
+               ajuda: "Comprimento médio dos trechos de calçada. É ESTIMATIVA: o cadastro "
+                    + "traz a área e a largura média de cada trecho, mas não o comprimento — "
+                    + "este é a área dividida pela largura média, a mesma conta que o score "
+                    + "já usa para densidade de árvore por 100 m. Trecho curto costuma ser "
+                    + "esquina e testada estreita; trecho longo, quadra inteira de um lado só.",
+               calcada: {valor: p => p.comprimento, max: 120, alto: "melhor",
+                         rot: "comprimento estimado", pontas: ["curto", "120 m ou mais"]}},
+  // 45 m é o menor trecho médio entre os 96 distritos; 75 m no topo espalha 86
+  // deles pelos sete degraus e satura os 10 rurais, em vez de achatar o resto
   declive:    {rot: "inclinação média", campo: "cal_declive", max: 7, un: "%",
                base: "inclinação média das calçadas do distrito", alto: "pior",
                ajuda: "Declividade média das calçadas do distrito. A NBR 9050 limita a "
@@ -104,6 +115,15 @@ const METRICAS = {
 
 /* Os filtros. Cada um é um teste por calçada, e o que passa fica no mapa.
  * Ligados por E: quanto mais filtro, menos calçada sobra. */
+/* Os indicadores em dois grupos, na ordem que a tela mostra. O primeiro é o que
+ * a cidade tem de errado, medido calçada a calçada; o segundo são as duas notas
+ * compostas, que combinam coisas e por isso pedem leitura à parte. */
+const GRUPOS_METRICA = [
+  {rot: "Barreiras", metricas: ["barreira", "estreita", "comprimento", "declive",
+                                "obstaculo", "pec", "sem_calcada", "sem_rampa"]},
+  {rot: "Filtros customizados", metricas: ["score", "potencial"]},
+];
+
 const FILTROS = {
   larga: {rot: "faixa livre ≥ 1,20 m", ok: p => p.livre_min >= FAIXA_LIVRE_MIN,
           ajuda: "Mínimo do Decreto Municipal 59.671/2020 e da NBR 9050 para a faixa por "
@@ -158,9 +178,14 @@ let zoomDeAbertura = null;          // abaixo dele, o mapa volta para a cidade
 const emCache = new Map();          // slug -> GeoJSON parseado, no máximo MAX_EM_CACHE
 
 /* ---------------- escala de cor ---------------- */
+/* `min` é opcional e vale 0 para quase todo indicador — taxa e nota começam no
+ * zero. O comprimento não: o menor distrito tem 45 m de trecho médio, e uma
+ * rampa que sai de zero gastava metade da cor num intervalo onde não existe
+ * distrito nenhum. O mapa saía com três tons. */
 function faixa(valor, m) {
   if (valor == null || Number.isNaN(valor)) return cor("--sem-dado");
-  const t = Math.min(1, Math.max(0, valor / m.max));
+  const lo = m.min || 0;
+  const t = Math.min(1, Math.max(0, (valor - lo) / (m.max - lo)));
   return cor(RAMPA[Math.min(RAMPA.length - 1, Math.floor(t * RAMPA.length))]);
 }
 
@@ -832,10 +857,14 @@ function marcarLinha(nomes) {
 /* ---------------- controles e legenda ---------------- */
 function desenharControles() {
   $("#controles").innerHTML = `
-    <div class="grupo"><span title="Escolhe o indicador que pinta os distritos, ordena a tabela e pinta cada calçada quando você se aproxima">pintar o mapa por</span><div class="pills" id="pills-metrica">
-      ${Object.entries(METRICAS).map(([k, m]) =>
-        `<button data-m="${k}" aria-pressed="${k === metrica}" title="${m.ajuda}"
-          >${m.rot}</button>`).join("")}
+    <div class="grupo largo"><span title="Escolhe o indicador que pinta os distritos, ordena a tabela e pinta cada calçada quando você se aproxima">Analisar São Paulo Por</span>
+      <div id="pills-metrica" class="grupos-metrica">
+      ${GRUPOS_METRICA.map(g =>
+        `<div class="sub"><span class="rot-grupo">${g.rot}</span><div class="pills">` +
+        g.metricas.filter(k => METRICAS[k]).map(k =>
+          `<button data-m="${k}" aria-pressed="${k === metrica}" title="${METRICAS[k].ajuda}"
+            >${METRICAS[k].rot}</button>`).join("") +
+        `</div></div>`).join("")}
     </div></div>
     <div class="grupo"><span title="Cada filtro é um critério da NBR 9050 e do Decreto 59.671/2020. Ligados por E, e só subtraem: a calçada que não passa some do mapa. Quem escolhe a cor é o indicador ali de cima">mostrar só as calçadas que</span><div class="pills" id="pills-filtro">
       ${Object.entries(FILTROS).map(([k, f]) =>
@@ -913,22 +942,28 @@ function desenharLegenda() {
   $("#legenda").innerHTML = `
     <div class="titulo">${m.rot}${m.dica ? ` — ${m.dica}` : ""}</div>
     <div class="escala">${RAMPA.map(s => `<i style="background:${cor(s)}"></i>`).join("")}</div>
-    <div class="escala-rot"><span>0${m.un}</span><span>mais forte, ${
+    <div class="escala-rot"><span>${m.min || 0}${m.un}</span><span>mais forte, ${
       m.alto === "melhor" ? "melhor" : "pior"}</span><span>${m.max}${m.un}</span></div>
     <div class="nd"><i></i>sem calçada cadastrada</div>`;
 }
 
 function pintarFaixa() {
   const c = municipio.calcadas;
+  /* Os dois primeiros cartões são complementares e somam 100%: ou a calçada
+   * passa na largura E na inclinação, ou tem ao menos uma barreira. O terceiro
+   * é o único que NÃO é medido por calçada — o cadastro do GeoSampa não
+   * registra rebaixamento de guia, e o número vem do Censo por face de quadra.
+   * O rótulo diz isso, senão o cartão mediria uma coisa e afirmaria outra. */
   $("#vao").innerHTML = `
-    <div class="lado destaque"><dt>é barreira</dt>
-      <dd>${pct(c.barreira)}<small>a calçada é estreita demais ou íngreme demais para passar</small></dd></div>
-    <div class="lado"><dt>estreita</dt>
-      <dd>${pct(c.estreita)}<small>faixa livre abaixo de 1,20 m, já descontando árvore e poste</small></dd></div>
-    <div class="lado"><dt>com obstáculo</dt>
-      <dd>${pct(c.obst)}<small>árvore ou poste plantado dentro da calçada</small></dd></div>
-    <div class="lado"><dt>passa em tudo</dt>
-      <dd>${pct(c.passa_tudo)}<small>das ${num(c.calcadas)} calçadas cadastradas no município</small></dd></div>`;
+    <div class="lado destaque"><dt>dentro das normas</dt>
+      <dd>${pct(c.dentro_norma)}<small>faixa livre de 1,20 m ou mais E declividade até 8,33%</small></dd></div>
+    <div class="lado"><dt>com ao menos uma barreira</dt>
+      <dd>${pct(c.barreira)}<small>estreita demais ou íngreme demais para passar</small></dd></div>
+    <div class="lado"><dt>sem rampa</dt>
+      <dd>${pct(municipio.taxas.sem_rampa)}<small>das faces de quadra com calçada, no Censo 2022 —
+      o cadastro de calçada não registra rebaixamento de guia</small></dd></div>
+    <div class="lado"><dt>abaixo de 1,20 m livres</dt>
+      <dd>${pct(c.estreita)}<small>das ${num(c.calcadas)} calçadas cadastradas no município</small></dd></div>`;
 }
 
 /* ---------------- autoteste ---------------- */
