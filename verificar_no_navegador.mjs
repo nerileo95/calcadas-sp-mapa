@@ -491,18 +491,25 @@ confere("clicar na tabela recorta os dados naquele distrito",
 confere("a tabela continua mostrando os vizinhos da tela",
         parseInt(r.naTela) > 1, `${r.naTela}`);
 
-/* Clicar de novo no distrito fixado desfixa: antes disso a única saída era
- * afastar o zoom até o mapa fechar o nível sozinho. */
+/* Clicar de novo no distrito fixado só tira o foco. O que ele NÃO pode fazer é
+ * voltar à cidade: o usuário perde a referência de onde estava olhando. */
 r = await js(`
+  const antes = {z: mapa.getZoom(), c: mapa.getCenter()};
   const linha = [...document.querySelectorAll("#tabela tr[data-d] button")]
     .find(b => b.closest("tr").dataset.d === "Pinheiros");
   linha.click();
-  await new Promise(r => setTimeout(r, 4000));
-  return {abertos: abertos.length, fixado: selecionado, calcadas: !!camadaCalcadas,
-          voltar: document.querySelector("#voltar").hidden};`);
-confere("clicar de novo na mesma linha desfixa e volta à cidade",
-        r.fixado === null && r.abertos === 0 && !r.calcadas && r.voltar,
-        JSON.stringify(r));
+  await new Promise(r => setTimeout(r, 5000));
+  const d = mapa.getCenter();
+  return {fixado: selecionado, abertos: abertos.map(p => p.NM_DIST),
+          calcadas: camadaCalcadas ? camadaCalcadas.getLayers().length : 0,
+          zoomIgual: mapa.getZoom() === antes.z,
+          moveu: Math.max(Math.abs(d.lat - antes.c.lat), Math.abs(d.lng - antes.c.lng))};`);
+confere("clicar de novo na mesma linha solta a fixação", r.fixado === null,
+        `fixado=${r.fixado} · ${r.abertos.join(", ")}`);
+confere("e o mapa fica onde estava, com as calçadas na tela",
+        r.zoomIgual && r.moveu < 1e-6 && r.calcadas > 100,
+        `zoom igual=${r.zoomIgual} · centro moveu ${r.moveu} · ${r.calcadas} calçadas`);
+confere("os vizinhos voltam ao recorte", r.abertos.length > 1, r.abertos.join(", "));
 
 r = await js(`
   mapa.setView([-23.5300, -46.6200], 14);

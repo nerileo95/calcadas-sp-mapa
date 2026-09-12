@@ -719,9 +719,10 @@ function voltarACidade() {
  * grande enquadra em zoom 12, abaixo de ZOOM_CALCADA, e sem forçar o clique não
  * mostraria calçada nenhuma. Os vizinhos que couberem na tela vêm junto. */
 async function irParaDistrito(props, enquadrar = true, ponto = null) {
-  // Clicar de novo no distrito já fixado desfixa: sem isso a única saída da
-  // visão de calçada é afastar o zoom até o mapa fechar o nível sozinho.
-  if (selecionado === props.id) return voltarACidade();
+  // Clicar de novo no distrito já fixado só tira o foco: o mapa fica onde está,
+  // as calçadas continuam desenhadas e os vizinhos voltam ao recorte. Voltar à
+  // cidade apagaria a referência de onde o usuário estava olhando.
+  if (selecionado === props.id) return desfixar();
   selecionado = props.id;
   const l = camadaDistritos.getLayers().find(x => x.feature.properties.id === props.id);
   if (enquadrar && l) {
@@ -734,6 +735,16 @@ async function irParaDistrito(props, enquadrar = true, ponto = null) {
     zoomDeAbertura = Math.min(ZOOM_CALCADA, mapa.getZoom());
     await entrarNoNivel(distritosNaTela());
   } finally { trocandoNivel = false; }
+}
+
+/* Solta a fixação sem mexer no enquadramento: o recorte volta a seguir a tela,
+ * que é o mesmo que o mapa faria num arrasto. `zoomDeAbertura` fica como está,
+ * senão um nível aberto por clique abaixo de ZOOM_CALCADA fecharia sozinho. */
+async function desfixar() {
+  selecionado = null;
+  trocandoNivel = true;
+  try { await entrarNoNivel(distritosNaTela()); }
+  finally { trocandoNivel = false; }
 }
 
 /* ---------------- filtro avançado: os pontos ---------------- */
