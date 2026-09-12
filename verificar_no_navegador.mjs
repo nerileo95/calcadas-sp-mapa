@@ -491,6 +491,19 @@ confere("clicar na tabela recorta os dados naquele distrito",
 confere("a tabela continua mostrando os vizinhos da tela",
         parseInt(r.naTela) > 1, `${r.naTela}`);
 
+/* Clicar de novo no distrito fixado desfixa: antes disso a única saída era
+ * afastar o zoom até o mapa fechar o nível sozinho. */
+r = await js(`
+  const linha = [...document.querySelectorAll("#tabela tr[data-d] button")]
+    .find(b => b.closest("tr").dataset.d === "Pinheiros");
+  linha.click();
+  await new Promise(r => setTimeout(r, 4000));
+  return {abertos: abertos.length, fixado: selecionado, calcadas: !!camadaCalcadas,
+          voltar: document.querySelector("#voltar").hidden};`);
+confere("clicar de novo na mesma linha desfixa e volta à cidade",
+        r.fixado === null && r.abertos === 0 && !r.calcadas && r.voltar,
+        JSON.stringify(r));
+
 r = await js(`
   mapa.setView([-23.5300, -46.6200], 14);
   await new Promise(r => setTimeout(r, 6000));

@@ -719,6 +719,9 @@ function voltarACidade() {
  * grande enquadra em zoom 12, abaixo de ZOOM_CALCADA, e sem forçar o clique não
  * mostraria calçada nenhuma. Os vizinhos que couberem na tela vêm junto. */
 async function irParaDistrito(props, enquadrar = true, ponto = null) {
+  // Clicar de novo no distrito já fixado desfixa: sem isso a única saída da
+  // visão de calçada é afastar o zoom até o mapa fechar o nível sozinho.
+  if (selecionado === props.id) return voltarACidade();
   selecionado = props.id;
   const l = camadaDistritos.getLayers().find(x => x.feature.properties.id === props.id);
   if (enquadrar && l) {
